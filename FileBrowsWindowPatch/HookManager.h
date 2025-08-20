@@ -16,7 +16,6 @@
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "comctl32.lib")
 
-#define WCA_ACCENT_POLICY 19
 #define WM_USER_REDRAW                         0x114514
 typedef __int64(__fastcall* UpdateBackground_t)(void* pThis);
 

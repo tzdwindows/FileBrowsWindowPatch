@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="FileBrowsWindowPatch1.1">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/x64/Release/FileBrowsWindowPatch1.1.zip!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

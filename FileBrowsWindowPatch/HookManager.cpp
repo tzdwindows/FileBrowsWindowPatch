@@ -76,6 +76,7 @@ namespace wuc = winrt::Windows::UI::Composition;
 namespace wfn = winrt::Windows::Foundation::Numerics;
 
 PaintBackground_t HookManager::OriginalPaintBackground = nullptr;
+static bool is = false;
 
 std::set<std::wstring> HookManager::transparentClasses = {
     L"DirectUIHWND",
@@ -409,7 +410,7 @@ void HookManager::InstallHooks() {
         SetWindowCompositionAttribute = (pfnSetWindowCompositionAttribute)GetProcAddress(hUser32, "SetWindowCompositionAttribute");
     }
 
-    HMODULE hDui70 = LoadLibrary(L"dui70.dll");
+    /*HMODULE hDui70 = LoadLibrary(L"dui70.dll");
     if (!hDui70) {
         LOG_ERROR("[HookManager.cpp][InstallHooks]", "Failed to load dui70.dll");
     }
@@ -421,15 +422,15 @@ void HookManager::InstallHooks() {
         if (!OriginalPaintBackground) {
             LOG_ERROR("[HookManager.cpp][InstallHooks]", "Failed to find PaintBackground");
         }
-    }
+    }*/
 
-    if (hDui70) {
+    /*if (hDui70) {
         // 获取 Element::Paint 的函数地址
         OriginalElementPaint = (Element_Paint_t)GetProcAddress(hDui70, "?Paint@Element@DirectUI@@UEAAXPEAUHDC__@@PEBUtagRECT@@1PEAU4@2@Z");
     }
     else {
         LOG_ERROR("[HookManager.cpp][InstallHooks]", "Failed to load dui70.dll");
-    }
+    }*/
 
 
     // 初始化原始函数指针
@@ -466,7 +467,7 @@ void HookManager::InstallHooks() {
     OriginalBitBlt = BitBlt;
     OriginalGdiAlphaBlend = GdiAlphaBlend;
     OriginalStretchBlt = StretchBlt;
-    HMODULE hModule = GetModuleHandleW(L"api-ms-win-core-processthreads-l1-1-0.dll");
+    /*HMODULE hModule = GetModuleHandleW(L"api-ms-win-core-processthreads-l1-1-0.dll");
     if (hModule == NULL) {
         hModule = LoadLibraryW(L"api-ms-win-core-processthreads-l1-1-0.dll");
     }
@@ -475,7 +476,7 @@ void HookManager::InstallHooks() {
         OriginalCreateProcessW = (PCreateProcessW)GetProcAddress(hModule, "CreateProcessW");
     }
 
-    /*HMODULE hXaml = LoadLibrary(L"Windows.UI.Xaml.dll");
+    HMODULE hXaml = LoadLibrary(L"Windows.UI.Xaml.dll");
     if (!hXaml) {
         LOG_ERROR("[HookManager.cpp][InstallHooks]", "Failed to load Windows.UI.Xaml.dll");
     }
@@ -541,7 +542,7 @@ void HookManager::InstallHooks() {
     DetourAttach(&(PVOID&)OriginalBitBlt, HookedBitBlt);
     DetourAttach(&(PVOID&)OriginalGdiAlphaBlend, HookedGdiAlphaBlend);
     DetourAttach(&(PVOID&)OriginalStretchBlt, HookedStretchBlt);
-    DetourAttach(&(PVOID&)OriginalCreateProcessW, HookedCreateProcessW);
+    //DetourAttach(&(PVOID&)OriginalCreateProcessW, HookedCreateProcessW);
 
     DWORD build = WindowsVersion::GetBuildNumber();
     LOG_DEBUG("[HookManager.cpp][InstallHooks]", "Windows build number: ", build);
@@ -2340,7 +2341,6 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
     // 如果父窗口是 Microsoft.UI.Content.DesktopChildSiteBridge，执行 TAPSite::Install
     if (className == L"Microsoft.UI.Content.DesktopChildSiteBridge" || className == L"Microsoft.UI.Content.DesktopWindowHost") {
         // 把 hWnd 作为线程参数传入，InstallUdk 会等待窗口内 XAML 主机就绪再 attach
-        static bool is = false;
         if (!is)
         {
             wil::unique_handle handle(CreateThread(nullptr, 0, TAPSite::InstallUdk, nullptr, 0, nullptr));
@@ -2429,7 +2429,7 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                     SetWindowSubclass(parent, HookManager::WndSubProc, 0, (DWORD_PTR)0);
                 }
             }
-
+            /*
             std::thread([]() {
                 // 在新线程中初始化 COM
                 winrt::init_apartment(winrt::apartment_type::multi_threaded);
@@ -2437,12 +2437,12 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                 if (FAILED(hr)) {
                     LOG_ERROR("[XamlTreeScanner]", L"CoInitializeEx failed: " + std::to_wstring(hr));
                     return;
-                }*/
+                }
                 ComUninitGuard comGuard;
 
                 LOG_INFO("[XamlTreeScanner]", L"Waiting for UI to load...");
                 //std::this_thread::sleep_for(std::chrono::milliseconds(3000));
-
+                efftype
                 try {
                     LOG_INFO("[XamlTreeScanner]", L"Initializing scanner...");
                     XamlTreeScanner scanner;
@@ -2550,7 +2550,7 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                 catch (...) {
                     LOG_ERROR("[XamlTreeScanner]", L"Unknown exception in scanning thread");
                 }
-                }).detach();
+                }).detach();*/
         }
     }
     return hWnd;
