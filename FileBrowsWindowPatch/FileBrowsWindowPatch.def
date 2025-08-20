@@ -1,0 +1,4 @@
+LIBRARY TaskbarTranslucentManager
+EXPORTS
+    DllGetClassObject
+    DllCanUnloadNow
