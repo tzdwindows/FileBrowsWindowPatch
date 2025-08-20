@@ -475,7 +475,7 @@ void HookManager::InstallHooks() {
         OriginalCreateProcessW = (PCreateProcessW)GetProcAddress(hModule, "CreateProcessW");
     }
 
-    HMODULE hXaml = LoadLibrary(L"Windows.UI.Xaml.dll");
+    /*HMODULE hXaml = LoadLibrary(L"Windows.UI.Xaml.dll");
     if (!hXaml) {
         LOG_ERROR("[HookManager.cpp][InstallHooks]", "Failed to load Windows.UI.Xaml.dll");
     }
@@ -510,7 +510,7 @@ void HookManager::InstallHooks() {
         else {
             LOG_ERROR("[InstallHooks]", "Failed to resolve UpdateBackground function");
         }
-    }
+    }*/
 
     // ¸½¼Ó¹³×Ó
     DetourAttach(&(PVOID&)OriginalCreateWindowExW, HookedCreateWindowExW);
