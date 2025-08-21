@@ -107,6 +107,7 @@ HRESULT VisualTreeWatcher::OnVisualTreeChange(
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"HomeViewRootGrid") return true;
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"LayoutRoot") return true;
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"PART_LayoutRoot") return true;
+            if (e.type == L"Microsoft.UI.Xaml.Controls.Border" && e.name == L"BorderElement") return true;
             if (e.name == L"FileExplorerCommandBar") return true;
             if (e.name == L"FileExplorerSearchBox") return true;
             if (e.type == L"Microsoft.UI.Xaml.Shapes.Path" && e.name == L"SelectedBackgroundPath") return true;
@@ -170,8 +171,94 @@ HRESULT VisualTreeWatcher::OnVisualTreeChange(
                             }
                             
                             else if (info.type == L"Microsoft.UI.Xaml.Shapes.Path") {
-                                propName = L"Microsoft.UI.Xaml.Shapes.Path.Fill^";
+                                propName = L"Microsoft.UI.Xaml.Shapes.Path.RasterizationScale";
+                                wchar_t buf2[1024];
+                                unsigned int propIndex = 0;
+                                HRESULT hrIndex = pVisualService3->GetPropertyIndex(key, propName, &propIndex);
+                                if (SUCCEEDED(hrIndex)) {
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] GetPropertyIndex(%s) hr=0x%08X index=%u handle=%llu\n",
+                                        propName, hrIndex, propIndex, static_cast<unsigned long long>(key));
+                                    OutputDebugStringW(buf2);
+
+                                    const struct { const wchar_t* type; const wchar_t* val; } candidates[] = {
+                                        {L"System.Double", L"0.0"},
+                                        {L"System.Double", L"0"},
+                                        {L"System.Double, mscorlib", L"0"},
+                                        {L"System.Double, System.Private.CoreLib", L"0"},
+                                        {L"Windows.Foundation.IReference`1[System.Double]", L"0"},
+                                        {L"Windows.Foundation.IReference`1[System.Double], Windows.Foundation", L"0"},
+                                        {L"double", L"0"},
+                                        {L"Double", L"0"},
+                                        {L"System.Double", L"0.000000"},
+                                        {L"System.Double", L"0E0"}
+                                    };
+
+                                    InstanceHandle valueHandle = 0;
+                                    HRESULT hrCreate = E_FAIL;
+                                    for (const auto& c : candidates) {
+                                        // 清理上一次的 handle（如果 CreateInstance 在失败时返回非零句柄，确保不泄漏）
+                                        if (valueHandle) {
+                                            // 如果有释放接口应在此释放；无法确定接口时仅置0以避免误用
+                                            valueHandle = 0;
+                                        }
+
+                                        BSTR typeB = SysAllocString(c.type);
+                                        BSTR valB = SysAllocString(c.val);
+                                        hrCreate = pVisualService3->CreateInstance(typeB, valB, &valueHandle);
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] Try CreateInstance(%s, %s) hr=0x%08X handle=%llu\n",
+                                            c.type, c.val, hrCreate, static_cast<unsigned long long>(valueHandle));
+                                        OutputDebugStringW(buf2);
+                                        SysFreeString(typeB);
+                                        SysFreeString(valB);
+
+                                        if (SUCCEEDED(hrCreate) && valueHandle) break;
+                                    }
+
+                                    // 如果简单的 CreateInstance 失败，尝试使用字符串封箱（有些实现接受 "System.String" + 数字字符串）
+                                    if (!(SUCCEEDED(hrCreate) && valueHandle)) {
+                                        BSTR typeB = SysAllocString(L"System.String");
+                                        BSTR valB = SysAllocString(L"0");
+                                        InstanceHandle strHandle = 0;
+                                        HRESULT hrStr = pVisualService3->CreateInstance(typeB, valB, &strHandle);
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] Try CreateInstance(System.String, \"0\") hr=0x%08X handle=%llu\n",
+                                            hrStr, static_cast<unsigned long long>(strHandle));
+                                        OutputDebugStringW(buf2);
+                                        SysFreeString(typeB);
+                                        SysFreeString(valB);
+
+                                        if (SUCCEEDED(hrStr) && strHandle) {
+                                            // 有些运行时会自动将 string -> 相应类型转换（尝试）
+                                            valueHandle = strHandle;
+                                            hrCreate = hrStr;
+                                        }
+                                    }
+
+                                    if (SUCCEEDED(hrCreate) && valueHandle) {
+                                        // 成功创建实例，设置本地值（注意：避免使用 0 作为 instance handle）
+                                        HRESULT hrSetLocal = pVisualService3->SetProperty(key, valueHandle, propIndex);
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] SetProperty(LOCAL %s) hr=0x%08X handle=%llu\n",
+                                            propName, hrSetLocal, static_cast<unsigned long long>(key));
+                                        OutputDebugStringW(buf2);
+
+                                        // 如果存在释放接口，这里应释放 valueHandle（接口未知时跳过）
+                                    }
+                                    else {
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] CreateInstance(all attempts) failed hr=0x%08X handle=%llu - cannot set RasterizationScale\n",
+                                            hrCreate, static_cast<unsigned long long>(valueHandle));
+                                        OutputDebugStringW(buf2);
+                                    }
+                                }
+                                else {
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] GetPropertyIndex(%s) failed hr=0x%08X\n",
+                                        propName, hrIndex);
+                                    OutputDebugStringW(buf2);
+                                }
+                                propName = L"Microsoft.UI.Xaml.Shapes.Path.Fill";
+                            } else if(info.type == L"Microsoft.UI.Xaml.Controls.Border")
+                            {
+                                propName = L"Microsoft.UI.Xaml.Controls.Border.BorderBrush";
                             }
+
                             else {
                                 propName = L"Microsoft.UI.Xaml.Controls.Grid.Background";
                             }
@@ -200,275 +287,16 @@ HRESULT VisualTreeWatcher::OnVisualTreeChange(
                                 OutputDebugStringW(buf2);
 
                                 if (SUCCEEDED(hrCreate) && brushHandle) {
-                                    // 1) 修改元素本地值
+                                    // 修改元素本地值
                                     HRESULT hrSetLocal = pVisualService3->SetProperty(key, brushHandle, propIndex);
                                     swprintf_s(buf2, L"[OnVisualTreeChange] SetProperty(LOCAL %s) hr=0x%08X handle=%llu\n",
                                         propName, hrSetLocal, key);
                                     OutputDebugStringW(buf2);
-
-                                    // 2) 尝试直接修改 ControlTemplate 内部实际渲染背景的元素（绕过 Style.Setter）
-                                    // 常见 TextBox Template 中用于绘制背景的类型/Name（尝试列表）
-                                    const wchar_t* targetElementTypes[] = {
-                                        L"Microsoft.UI.Xaml.Controls.Border",
-                                        L"Windows.UI.Xaml.Controls.Border",
-                                        L"Border",
-                                        L"Microsoft.UI.Xaml.Shapes.Rectangle",
-                                        L"Windows.UI.Xaml.Shapes.Rectangle",
-                                        L"Rectangle",
-                                        L"Microsoft.UI.Xaml.Shapes.Path",
-                                        L"Path"
-                                    };
-                                    // 这些元素上可能使用的属性名（优先 Background/Fill）
-                                    const wchar_t* bgPropCandidates[] = {
-                                        L"Microsoft.UI.Xaml.Controls.Border.Background",
-                                        L"Windows.UI.Xaml.Controls.Border.Background",
-                                        L"Border.Background",
-                                        L"Microsoft.UI.Xaml.Shapes.Path.Fill",
-                                        L"Windows.UI.Xaml.Shapes.Path.Fill",
-                                        L"Path.Fill",
-                                        L"Microsoft.UI.Xaml.Shapes.Rectangle.Fill",
-                                        L"Windows.UI.Xaml.Shapes.Rectangle.Fill",
-                                        L"Rectangle.Fill",
-                                        L"Background",
-                                        L"Fill"
-                                    };
-
-                                    // 查找 ControlTemplate/Template，并在 Template.VisualTree 中递归查找可设置 Background/Fill 的元素
-                                    const wchar_t* templateCandidates[] = {
-                                        L"Microsoft.UI.Xaml.Controls.Control.Template",
-                                        L"Windows.UI.Xaml.Controls.Control.Template",
-                                        L"Control.Template",
-                                        L"Template"
-                                    };
-
-                                    auto trySetBgOnHandle = [&](InstanceHandle h) -> bool {
-                                        if (!h) return false;
-                                        // 遍历 bgPropCandidates，若有可用属性则尝试设置
-                                        for (const wchar_t* bgProp : bgPropCandidates) {
-                                            unsigned int idx = 0;
-                                            HRESULT hrIdx = pVisualService3->GetPropertyIndex(h, bgProp, &idx);
-                                            if (SUCCEEDED(hrIdx)) {
-                                                HRESULT hrSet = pVisualService3->SetProperty(h, brushHandle, idx);
-                                                swprintf_s(buf2, L"[OnVisualTreeChange] Try set %s on handle=%llu hr=0x%08X\n", bgProp, static_cast<unsigned long long>(h), hrSet);
-                                                OutputDebugStringW(buf2);
-                                                if (SUCCEEDED(hrSet)) return true;
-                                            }
-                                        }
-                                        return false;
-                                        };
-
-                                    // 递归搜索函数：对 rootHandle 尝试 set，若未成功则尝试获取其 "children"-like 属性并对每个子项递归
-                                    std::function<bool(InstanceHandle, int)> recurseSet;
-                                    recurseSet = [&](InstanceHandle rootHandle, int depth) -> bool {
-                                        if (!rootHandle || depth > 12) return false;
-                                        // 1) 直接尝试在该节点上设置 Background/Fill
-                                        if (trySetBgOnHandle(rootHandle)) {
-                                            swprintf_s(buf2, L"[OnVisualTreeChange] Successfully set bg on template element handle=%llu\n", static_cast<unsigned long long>(rootHandle));
-                                            OutputDebugStringW(buf2);
-                                            return true;
-                                        }
-
-                                        // 2) 尝试从该节点获取直接可能包含子元素的属性（尝试多种常见属性名）
-                                        const wchar_t* childrenCandidates[] = {
-                                            L"Microsoft.UI.Xaml.FrameworkElement.Content",
-                                            L"Content",
-                                            L"Child",
-                                            L"Children",
-                                            L"Microsoft.UI.Xaml.Controls.Panel.Children",
-                                            L"VisualTree",
-                                            L"TemplateRoot",
-                                            L"Root",
-                                            L"Target",
-                                            L"Element",
-                                            L"Collection",
-                                            L"Items"
-                                        };
-
-                                        for (const wchar_t* cc : childrenCandidates) {
-                                            unsigned int childPropIdx = 0;
-                                            HRESULT hrChildIdx = pVisualService3->GetPropertyIndex(rootHandle, cc, &childPropIdx);
-                                            if (SUCCEEDED(hrChildIdx)) {
-                                                InstanceHandle childHandle = 0;
-                                                HRESULT hrGetChild = pVisualService3->GetProperty(rootHandle, childPropIdx, &childHandle);
-                                                swprintf_s(buf2, L"[OnVisualTreeChange] Try children candidate (%s) on handle=%llu hr=0x%08X childHandle=%llu\n",
-                                                    cc, static_cast<unsigned long long>(rootHandle), hrGetChild, static_cast<unsigned long long>(childHandle));
-                                                OutputDebugStringW(buf2);
-
-                                                if (SUCCEEDED(hrGetChild) && childHandle) {
-                                                    // 有时 childHandle 是集合/工厂而非单个元素；尝试直接设置/递归（若是集合则尝试直接递归）
-                                                    if (recurseSet(childHandle, depth + 1)) return true;
-                                                }
-                                            }
-                                        }
-
-                                        // 3) 若都没有，尝试通过已保存快照中的父链向上查找 resources（之前的实现）
-                                        return false;
-                                        }; // end recurseSet
-
-                                    // 获取 Control.Template（若存在）
-                                    bool modifiedInTemplate = false;
-                                    for (const wchar_t* tc : templateCandidates) {
-                                        unsigned int tmpIdx = 0;
-                                        HRESULT hrTmpIdx = pVisualService3->GetPropertyIndex(key, tc, &tmpIdx);
-                                        if (SUCCEEDED(hrTmpIdx)) {
-                                            InstanceHandle templateHandle = 0;
-                                            HRESULT hrGetTmp = pVisualService3->GetProperty(key, tmpIdx, &templateHandle);
-                                            swprintf_s(buf2, L"[OnVisualTreeChange] Try Template candidate (%s) hr=0x%08X templateHandle=%llu\n",
-                                                tc, hrGetTmp, static_cast<unsigned long long>(templateHandle));
-                                            OutputDebugStringW(buf2);
-                                            if (SUCCEEDED(hrGetTmp) && templateHandle) {
-                                                // 有些 template 直接包含 VisualTree/Root，尝试递归在其中查找可设置节点
-                                                if (recurseSet(templateHandle, 0)) {
-                                                    modifiedInTemplate = true;
-                                                    break;
-                                                }
-                                                // 若 templateHandle 本身不是可操作的 visual tree 节点，尝试获取其 VisualTree 属性
-                                                unsigned int vtIdx = 0;
-                                                const wchar_t* visualTreeCandidates[] = {
-                                                    L"Microsoft.UI.Xaml.Controls.ControlTemplate.VisualTree",
-                                                    L"VisualTree",
-                                                    L"Template.VisualTree",
-                                                    L"ControlTemplate.VisualTree"
-                                                };
-                                                for (const wchar_t* vtc : visualTreeCandidates) {
-                                                    HRESULT hrVtIdx = pVisualService3->GetPropertyIndex(templateHandle, vtc, &vtIdx);
-                                                    if (SUCCEEDED(hrVtIdx)) {
-                                                        InstanceHandle vtHandle = 0;
-                                                        HRESULT hrGetVt = pVisualService3->GetProperty(templateHandle, vtIdx, &vtHandle);
-                                                        swprintf_s(buf2, L"[OnVisualTreeChange] Try Template.VisualTree (%s) hr=0x%08X vtHandle=%llu\n",
-                                                            vtc, hrGetVt, static_cast<unsigned long long>(vtHandle));
-                                                        OutputDebugStringW(buf2);
-                                                        if (SUCCEEDED(hrGetVt) && vtHandle) {
-                                                            if (recurseSet(vtHandle, 0)) {
-                                                                modifiedInTemplate = true;
-                                                                break;
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                if (modifiedInTemplate) break;
-                                            }
-                                        }
-                                    } // end for templateCandidates
-
-                                    if (modifiedInTemplate) {
-                                        swprintf_s(buf2, L"[OnVisualTreeChange] Modified background via ControlTemplate traversal for handle=%llu\n", key);
-                                        OutputDebugStringW(buf2);
-                                    }
-                                    else {
-                                        swprintf_s(buf2, L"[OnVisualTreeChange] 未能在 ControlTemplate 中找到可修改的元素（许多运行时不允许通过 diagnostics 修改模板/默认样式）。将继续尝试 Resources/祖先查找。\n");
-                                        OutputDebugStringW(buf2);
-
-                                        // 如果上面都失败，继续尝试祖先 Resources（和之前实现类似）
-                                        unsigned long long parentKey = static_cast<unsigned long long>(relation.Parent);
-                                        unsigned long long current = parentKey;
-                                        bool modifiedFromResources = false;
-                                        for (int depth = 0; depth < 20 && current != 0; ++depth) {
-                                            unsigned int resPropIdx = 0;
-                                            const wchar_t* resourcesCandidates[] = {
-                                                L"Microsoft.UI.Xaml.FrameworkElement.Resources",
-                                                L"Windows.UI.Xaml.FrameworkElement.Resources",
-                                                L"FrameworkElement.Resources",
-                                                L"Resources",
-                                                L"Application.Resources",
-                                                L"Microsoft.UI.Xaml.Application.Resources",
-                                                L"Windows.UI.Xaml.Application.Resources"
-                                            };
-                                            InstanceHandle resourcesHandle = 0;
-                                            bool foundResources = false;
-                                            for (const wchar_t* rc : resourcesCandidates) {
-                                                HRESULT hrResIdx = pVisualService3->GetPropertyIndex(current, rc, &resPropIdx);
-                                                if (SUCCEEDED(hrResIdx)) {
-                                                    HRESULT hrGetRes = pVisualService3->GetProperty(current, resPropIdx, &resourcesHandle);
-                                                    swprintf_s(buf2, L"[OnVisualTreeChange] ancestor handle=%llu try Resources candidate (%s) hr=0x%08X resourcesHandle=%llu\n",
-                                                        current, rc, hrGetRes, static_cast<unsigned long long>(resourcesHandle));
-                                                    OutputDebugStringW(buf2);
-                                                    if (SUCCEEDED(hrGetRes) && resourcesHandle) {
-                                                        foundResources = true;
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            if (foundResources && resourcesHandle) {
-                                                const wchar_t* candidateStyleKeys[] = {
-                                                    L"TextBoxStyle",
-                                                    L"TextBoxDefaultStyle",
-                                                    L"Microsoft.UI.Xaml.Controls.TextBoxStyle",
-                                                    L"TextBoxThemeStyle",
-                                                    L"DefaultTextBoxStyle",
-                                                    L"TextBox"
-                                                };
-                                                for (const wchar_t* keyCandidate : candidateStyleKeys) {
-                                                    unsigned int resIndex = 0;
-                                                    HRESULT hrResIndex = pVisualService3->GetPropertyIndex(resourcesHandle, keyCandidate, &resIndex);
-                                                    if (SUCCEEDED(hrResIndex)) {
-                                                        InstanceHandle foundStyleHandle = 0;
-                                                        HRESULT hrGetFound = pVisualService3->GetProperty(resourcesHandle, resIndex, &foundStyleHandle);
-                                                        swprintf_s(buf2, L"[OnVisualTreeChange] Try resource key (%s) hr=0x%08X foundStyleHandle=%llu\n",
-                                                            keyCandidate, hrGetFound, static_cast<unsigned long long>(foundStyleHandle));
-                                                        OutputDebugStringW(buf2);
-                                                        if (SUCCEEDED(hrGetFound) && foundStyleHandle) {
-                                                            // 在该 style 上尝试直接设置 Background（如果可用）
-                                                            unsigned int foundStylePropIdx = 0;
-                                                            HRESULT hrFspi = pVisualService3->GetPropertyIndex(foundStyleHandle, propName, &foundStylePropIdx);
-                                                            if (SUCCEEDED(hrFspi)) {
-                                                                HRESULT hrSetFound = pVisualService3->SetProperty(foundStyleHandle, brushHandle, foundStylePropIdx);
-                                                                swprintf_s(buf2, L"[OnVisualTreeChange] SetProperty(RESOURCE STYLE %s) hr=0x%08X styleHandle=%llu\n",
-                                                                    propName, hrSetFound, static_cast<unsigned long long>(foundStyleHandle));
-                                                                OutputDebugStringW(buf2);
-                                                                modifiedFromResources = SUCCEEDED(hrSetFound);
-                                                                if (modifiedFromResources) break;
-                                                            }
-                                                            else {
-                                                                // 若 style 未直接暴露属性，尝试在 style 的 Template 上执行模板遍历
-                                                                unsigned int tplIdx = 0;
-                                                                const wchar_t* foundTemplateCandidates[] = {
-                                                                    L"Microsoft.UI.Xaml.Controls.Control.Template",
-                                                                    L"Windows.UI.Xaml.Controls.Control.Template",
-                                                                    L"Control.Template",
-                                                                    L"Template"
-                                                                };
-                                                                for (const wchar_t* ftc : foundTemplateCandidates) {
-                                                                    HRESULT hrFtIdx = pVisualService3->GetPropertyIndex(foundStyleHandle, ftc, &tplIdx);
-                                                                    if (SUCCEEDED(hrFtIdx)) {
-                                                                        InstanceHandle foundTpl = 0;
-                                                                        HRESULT hrGetTpl = pVisualService3->GetProperty(foundStyleHandle, tplIdx, &foundTpl);
-                                                                        swprintf_s(buf2, L"[OnVisualTreeChange] Found style.Template candidate (%s) hr=0x%08X foundTpl=%llu\n",
-                                                                            ftc, hrGetTpl, static_cast<unsigned long long>(foundTpl));
-                                                                        OutputDebugStringW(buf2);
-                                                                        if (SUCCEEDED(hrGetTpl) && foundTpl) {
-                                                                            if (recurseSet(foundTpl, 0)) {
-                                                                                modifiedFromResources = true;
-                                                                                break;
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                                if (modifiedFromResources) break;
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                if (modifiedFromResources) break;
-                                            }
-
-                                            auto it = g_elements.find(current);
-                                            if (it == g_elements.end()) break;
-                                            current = it->second.parent;
-                                        } // end ancestor loop
-
-                                        if (!modifiedFromResources) {
-                                            swprintf_s(buf2, L"[OnVisualTreeChange] 在祖先 Resources 或 Template 中未能修改 TextBox 的样式（可能由主题/默认样式或不可变运行时控制）。\n");
-                                            OutputDebugStringW(buf2);
-                                        }
-                                    } // end modifiedInTemplate else
-                                } // end if brush created
-                                else {
-                                    swprintf_s(buf2, L"[OnVisualTreeChange] CreateInstance(Brush) 失败 hr=0x%08X\n", hrCreate);
+                                } else {
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] CreateInstance(%s) failed hr=0x%08X\n",
+                                        propName, hrIndex);
                                     OutputDebugStringW(buf2);
                                 }
-
-                                SysFreeString(transparentColorBstr);
                             }
                             else {
                                 swprintf_s(buf2, L"[OnVisualTreeChange] GetPropertyIndex(%s) failed hr=0x%08X\n",
