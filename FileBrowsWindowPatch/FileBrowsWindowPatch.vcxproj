@@ -159,6 +159,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ConfigManager.h" />
+    <ClInclude Include="CrashMonitor.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Helper.h" />
     <ClInclude Include="HookManager.h" />
@@ -174,6 +175,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ConfigManager.cpp" />
+    <ClCompile Include="CrashMonitor.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="Helper.cpp" />
     <ClCompile Include="HookManager.cpp" />

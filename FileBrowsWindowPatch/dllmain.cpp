@@ -18,6 +18,8 @@
 
 #include "Logger.h"
 #include "LogRedirector.h"
+#include "CrashMonitor.h"
+
 #pragma comment(lib, "shlwapi.lib")
 
 HMODULE g_hModule = nullptr;
@@ -65,17 +67,26 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID) {
         std::wstring exeName = PathFindFileNameW(exePath);
         std::transform(exeName.begin(), exeName.end(), exeName.begin(), ::towlower);
 
-        printf("当前进程: %ls\n", exeName.c_str());
-
         if (exeName == L"explorer.exe") {
             /*wil::unique_handle handle2(CreateThread(nullptr, 0, TAPSite::InstallUdk, nullptr, 0, nullptr));
             if (!handle2) {
                 LOG_ERROR("[dllmain.cpp][DllMain]", L"创建TAPSite线程失败\n");
             }*/
-
-            printf("正在初始化资源管理器钩子...\n");
+            CrashMonitor monitor;
+            monitor.Run();
             //ConfigManager::LoadConfig();
             HookManager::InstallHooks();
+        }
+        else {
+            LOG_INFO("[dllmain.cpp][DllMain]", L"当前进程名: ", exeName);
+            LOG_INFO("[dllmain.cpp][DllMain]", L"非explorer.exe进程，自动释放DLL");
+            CreateThread(nullptr, 0, [](LPVOID lpParam) -> DWORD {
+                HMODULE hModule = static_cast<HMODULE>(lpParam);
+                Sleep(100);
+                FreeLibraryAndExitThread(hModule, 0);
+                return 0;
+                }, hModule, 0, nullptr);
+            return TRUE; // 或者根据情况返回
         }
     }
     return TRUE;

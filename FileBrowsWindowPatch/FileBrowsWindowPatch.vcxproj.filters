@@ -54,6 +54,9 @@
     <ClInclude Include="XamlTreeScanner.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="CrashMonitor.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -90,6 +93,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="XamlTreeScanner.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CrashMonitor.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
