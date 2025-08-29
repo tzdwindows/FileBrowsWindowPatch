@@ -184,7 +184,7 @@ public:
         COLORREF blendColor = 0; // »ìºÏÑÕÉ«
 
         bool automatic_acquisition_color = false;
-        int automatic_acquisition_color_transparency = -1;
+        int automatic_acquisition_color_transparency = 255;
 
         std::wstring imagePath;
         float imageOpacity = 0.8f;
@@ -271,7 +271,7 @@ private:
     static HRESULT WINAPI HookedDrawThemeTextEx(HTHEME hTheme, HDC hdc, int iPartId, int iStateId, LPCWSTR pszText, int cchText, DWORD dwTextFlags, LPCRECT pRect, const DTTOPTS* pOptions);
     static HRESULT WINAPI HookedDrawThemeBackground(HTHEME hTheme, HDC hdc, int iPartId, int iStateId, LPCRECT pRect, LPCRECT pClipRect);
     static HRESULT WINAPI HookedDrawThemeBackgroundEx(HTHEME hTheme, HDC hdc, int iPartId, int iStateId, LPCRECT pRect, const DTBGOPTS* pOptions);
-    static void StartAero(HWND hwnd, int type, COLORREF color, bool blend);
+    static void StartAero(HWND hwnd, int type, COLORREF color, int transparencyPercent, bool blend);
     static BOOL WINAPI HookedPatBlt(HDC hdc, int x, int y, int w, int h, DWORD rop);
     static ATOM __stdcall HookedRegisterClassExW(const WNDCLASSEXW* lpWndClass);
     static void __fastcall HookedPaintBackground(

@@ -1,4 +1,4 @@
-#include "pch.h"
+ï»¿#include "pch.h"
 #include "HookManager.h"
 
 #include <sstream>
@@ -98,7 +98,7 @@ namespace PdbResolver {
         std::string narrowStr(bufferSize, 0);
         WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, &narrowStr[0], bufferSize, nullptr, nullptr);
 
-        // È¥³ıÄ©Î²µÄ null ×Ö·û
+        // å»é™¤æœ«å°¾çš„ null å­—ç¬¦
         if (!narrowStr.empty() && narrowStr.back() == '\0') {
             narrowStr.pop_back();
         }
@@ -109,32 +109,32 @@ namespace PdbResolver {
     bool InitializeSymbols() {
         if (g_symbolsInitialized) return true;
 
-        // ÉèÖÃ·ûºÅÑ¡Ïî
+        // è®¾ç½®ç¬¦å·é€‰é¡¹
         SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
 
-        // ³õÊ¼»¯·ûºÅ´¦Àí
+        // åˆå§‹åŒ–ç¬¦å·å¤„ç†
         if (!SymInitialize(GetCurrentProcess(), nullptr, FALSE)) {
             LOG_ERROR("[PdbResolver]", "SymInitialize failed: ", GetLastError());
             return false;
         }
 
-        // ¹¹½¨±¾µØ·ûºÅ»º´æÂ·¾¶ (µ±Ç° DLL ËùÔÚÄ¿Â¼µÄ symbols ×ÓÄ¿Â¼)
+        // æ„å»ºæœ¬åœ°ç¬¦å·ç¼“å­˜è·¯å¾„ (å½“å‰ DLL æ‰€åœ¨ç›®å½•çš„ symbols å­ç›®å½•)
         wchar_t dllPath[MAX_PATH] = { 0 };
         if (!g_hModule || !GetModuleFileNameW(g_hModule, dllPath, MAX_PATH)) {
             LOG_WARN("[PdbResolver]", "Failed to get DLL path: ", GetLastError());
         }
         else {
-            // ´ÓÍêÕûÂ·¾¶ÖĞÌáÈ¡Ä¿Â¼²¿·Ö
+            // ä»å®Œæ•´è·¯å¾„ä¸­æå–ç›®å½•éƒ¨åˆ†
             wchar_t* lastBackslash = wcsrchr(dllPath, L'\\');
             if (lastBackslash) {
-                *lastBackslash = L'\0'; // È¥³ıÎÄ¼şÃû²¿·Ö
+                *lastBackslash = L'\0'; // å»é™¤æ–‡ä»¶åéƒ¨åˆ†
             }
 
-            // ´´½¨ symbols ×ÓÄ¿Â¼Â·¾¶
+            // åˆ›å»º symbols å­ç›®å½•è·¯å¾„
             wchar_t symbolsPath[MAX_PATH];
             PathCombineW(symbolsPath, dllPath, L"symbols");
 
-            // È·±£Ä¿Â¼´æÔÚ
+            // ç¡®ä¿ç›®å½•å­˜åœ¨
             if (!PathIsDirectoryW(symbolsPath) && !CreateDirectoryW(symbolsPath, nullptr)) {
                 LOG_WARN("[PdbResolver]", "Failed to create symbols directory: ", GetLastError());
             }
@@ -142,12 +142,12 @@ namespace PdbResolver {
                 LOG_DEBUG("[PdbResolver]", "Using local symbols cache: ", symbolsPath);
             }
 
-            // ¹¹½¨·ûºÅËÑË÷Â·¾¶
+            // æ„å»ºç¬¦å·æœç´¢è·¯å¾„
             std::string searchPath = "srv*";
             searchPath += WideToNarrow(symbolsPath);
             searchPath += "*https://msdl.microsoft.com/download/symbols";
 
-            // ÉèÖÃ·ûºÅËÑË÷Â·¾¶
+            // è®¾ç½®ç¬¦å·æœç´¢è·¯å¾„
             if (!SymSetSearchPath(GetCurrentProcess(), searchPath.c_str())) {
                 LOG_WARN("[PdbResolver]", "SymSetSearchPath failed: ", GetLastError());
             }
@@ -166,11 +166,11 @@ namespace PdbResolver {
             return 0;
         }
 
-        // »ñÈ¡Ä£¿éÍêÕûÂ·¾¶
+        // è·å–æ¨¡å—å®Œæ•´è·¯å¾„
         char modulePath[MAX_PATH] = { 0 };
         GetModuleFileNameA(hModule, modulePath, MAX_PATH);
 
-        // ¼ì²éÊÇ·ñÒÑ¼ÓÔØ·ûºÅ
+        // æ£€æŸ¥æ˜¯å¦å·²åŠ è½½ç¬¦å·
         auto it = g_loadedModules.find(modulePath);
         if (it != g_loadedModules.end()) {
             LOG_DEBUG("[PdbResolver]", "Using cached symbols for: ", modulePath);
@@ -182,7 +182,7 @@ namespace PdbResolver {
                 return 0;
             }
 
-            // ¼ÓÔØÄ£¿é·ûºÅ - Ê¹ÓÃÍêÕûÂ·¾¶
+            // åŠ è½½æ¨¡å—ç¬¦å· - ä½¿ç”¨å®Œæ•´è·¯å¾„
             DWORD64 baseAddress = SymLoadModuleEx(
                 GetCurrentProcess(),
                 nullptr,
@@ -203,7 +203,7 @@ namespace PdbResolver {
             g_loadedModules[modulePath] = baseAddress;
             LOG_INFO("[PdbResolver]", "Loaded symbols for: ", modulePath);
 
-            // ´òÓ¡Ä£¿éĞÅÏ¢ÑéÖ¤
+            // æ‰“å°æ¨¡å—ä¿¡æ¯éªŒè¯
             IMAGEHLP_MODULE64 moduleInfo64 = { sizeof(IMAGEHLP_MODULE64) };
             if (SymGetModuleInfo64(GetCurrentProcess(), baseAddress, &moduleInfo64)) {
                 LOG_DEBUG("[PdbResolver]", "PDB info: ", moduleInfo64.LoadedPdbName);
@@ -215,38 +215,38 @@ namespace PdbResolver {
         DWORD64 baseAddress = g_loadedModules[modulePath];
         const char* targetFunction = "UpdateBackground";
 
-        // ·ûºÅËÑË÷»Øµ÷ÉÏÏÂÎÄ
+        // ç¬¦å·æœç´¢å›è°ƒä¸Šä¸‹æ–‡
         struct SymbolSearchContext {
             const char* targetName;
             uintptr_t address;
             bool found;
         } context = { targetFunction, 0, false };
 
-        // ·ûºÅÃ¶¾Ù»Øµ÷
+        // ç¬¦å·æšä¸¾å›è°ƒ
         auto EnumSymbolsCallback = [](PSYMBOL_INFO pSymInfo, ULONG SymbolSize, PVOID UserContext) -> BOOL {
             SymbolSearchContext* ctx = static_cast<SymbolSearchContext*>(UserContext);
 
-            // ¼ì²éº¯ÊıÃû³ÆÆ¥Åä
+            // æ£€æŸ¥å‡½æ•°åç§°åŒ¹é…
             if (strstr(pSymInfo->Name, ctx->targetName) != nullptr) {
-                // ¶îÍâÑéÖ¤ÊÇ·ñÎªHubÀà³ÉÔ±
+                // é¢å¤–éªŒè¯æ˜¯å¦ä¸ºHubç±»æˆå‘˜
                 if (strstr(pSymInfo->Name, "Hub") != nullptr ||
                     strstr(pSymInfo->Name, "DirectUI") != nullptr) {
                     LOG_DEBUG("[PdbResolver]", "Found candidate: ", pSymInfo->Name);
                     ctx->address = static_cast<uintptr_t>(pSymInfo->Address);
                     ctx->found = true;
-                    return FALSE; // ÕÒµ½¼´Í£Ö¹ËÑË÷
+                    return FALSE; // æ‰¾åˆ°å³åœæ­¢æœç´¢
                 }
             }
-            return TRUE; // ¼ÌĞøËÑË÷
+            return TRUE; // ç»§ç»­æœç´¢
             };
 
-        // Ã¶¾ÙÄ£¿éÖĞµÄËùÓĞ·ûºÅ
+        // æšä¸¾æ¨¡å—ä¸­çš„æ‰€æœ‰ç¬¦å·
         if (!SymEnumSymbols(
-            GetCurrentProcess(),        // ½ø³Ì¾ä±ú
-            baseAddress,                // Ä£¿é»ùÖ·
-            nullptr,                    // ÑÚÂë (ËùÓĞ·ûºÅ)
-            EnumSymbolsCallback,        // »Øµ÷º¯Êı
-            &context))                 // ÓÃ»§ÉÏÏÂÎÄ
+            GetCurrentProcess(),        // è¿›ç¨‹å¥æŸ„
+            baseAddress,                // æ¨¡å—åŸºå€
+            nullptr,                    // æ©ç  (æ‰€æœ‰ç¬¦å·)
+            EnumSymbolsCallback,        // å›è°ƒå‡½æ•°
+            &context))                 // ç”¨æˆ·ä¸Šä¸‹æ–‡
         {
             LOG_ERROR("[PdbResolver]", "SymEnumSymbols failed: ", GetLastError());
         }
@@ -256,10 +256,10 @@ namespace PdbResolver {
             return context.address;
         }
 
-        // ÖÕ¼«»ØÍË£ºÍ¨¹ıº¯ÊıÇ©ÃûËÑË÷
+        // ç»ˆæå›é€€ï¼šé€šè¿‡å‡½æ•°ç­¾åæœç´¢
         LOG_WARN("[PdbResolver]", "Using fallback signature scan for: ", decoratedName);
 
-        // UpdateBackground º¯ÊıµÄÌØÕ÷Âë
+        // UpdateBackground å‡½æ•°çš„ç‰¹å¾ç 
         const uint8_t signature[] = {
             0x48, 0x8B, 0xC4,       // mov rax, rsp
             0x55,                   // push rbp
@@ -303,7 +303,7 @@ DWORD WINAPI ConfigUpdateThread(LPVOID lpParam) {
         MapViewOfFile(hConfigMap, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, sizeof(Remote_Config))
         );
 
-    // Ìí¼ÓÅäÖÃÖµÏÔÊ¾
+    // æ·»åŠ é…ç½®å€¼æ˜¾ç¤º
     auto ShowConfigValues = [](const Remote_Config* config) {
         std::wstringstream ss;
         ss << L"Configuration Values:\n";
@@ -322,13 +322,13 @@ DWORD WINAPI ConfigUpdateThread(LPVOID lpParam) {
     
     while (!shouldExit) {
         if (pRemoteConfig) {
-            // ÏÔÊ¾ÅäÖÃÖµ£¨Ã¿´ÎÑ­»·¶¼ÏÔÊ¾£©
+            // æ˜¾ç¤ºé…ç½®å€¼ï¼ˆæ¯æ¬¡å¾ªç¯éƒ½æ˜¾ç¤ºï¼‰
             ShowConfigValues(pRemoteConfig);
 
             if (!pRemoteConfig->enabled) {
                 HookManager::RemoveHooks();
 
-                // ÏÔÊ¾½ûÓÃÍ¨Öª
+                // æ˜¾ç¤ºç¦ç”¨é€šçŸ¥
                 MessageBoxW(NULL, L"Disabling hooks and unloading DLL", L"Config Update", MB_OK);
 
                 if (pRemoteConfig) {
@@ -349,7 +349,7 @@ DWORD WINAPI ConfigUpdateThread(LPVOID lpParam) {
                 return 0;
             }
 
-            // ´Ó¹²ÏíÄÚ´æ¶ÁÈ¡ÅäÖÃ
+            // ä»å…±äº«å†…å­˜è¯»å–é…ç½®
             HookManager::Config newConfig;
             newConfig.effType = pRemoteConfig->effType;
             newConfig.blendColor = pRemoteConfig->blendColor;
@@ -360,12 +360,12 @@ DWORD WINAPI ConfigUpdateThread(LPVOID lpParam) {
             newConfig.imageBlurRadius = pRemoteConfig->imageBlurRadius;
             newConfig.smallborder = pRemoteConfig->smallborder;
 
-            // Ïß³Ì°²È«¸üĞÂÅäÖÃ
+            // çº¿ç¨‹å®‰å…¨æ›´æ–°é…ç½®
             {
                 HookManager::m_config = newConfig;
             }
         }
-        Sleep(100); // Ã¿100ms¼ì²éÒ»´Î
+        Sleep(100); // æ¯100msæ£€æŸ¥ä¸€æ¬¡
     }
     return 0;
 }
@@ -415,7 +415,7 @@ void HookManager::InstallHooks() {
         LOG_ERROR("[HookManager.cpp][InstallHooks]", "Failed to load dui70.dll");
     }
     else {
-        // Ê¹ÓÃĞŞÊÎÃû»ñÈ¡º¯ÊıµØÖ·
+        // ä½¿ç”¨ä¿®é¥°åè·å–å‡½æ•°åœ°å€
         OriginalPaintBackground = (PaintBackground_t)GetProcAddress(hDui70,
             "?PaintBackground@Element@DirectUI@@QEAAXPEAUHDC__@@PEAVValue@2@AEBUtagRECT@@222@Z");
 
@@ -425,7 +425,7 @@ void HookManager::InstallHooks() {
     }*/
 
     /*if (hDui70) {
-        // »ñÈ¡ Element::Paint µÄº¯ÊıµØÖ·
+        // è·å– Element::Paint çš„å‡½æ•°åœ°å€
         OriginalElementPaint = (Element_Paint_t)GetProcAddress(hDui70, "?Paint@Element@DirectUI@@UEAAXPEAUHDC__@@PEBUtagRECT@@1PEAU4@2@Z");
     }
     else {
@@ -433,7 +433,7 @@ void HookManager::InstallHooks() {
     }*/
 
 
-    // ³õÊ¼»¯Ô­Ê¼º¯ÊıÖ¸Õë
+    // åˆå§‹åŒ–åŸå§‹å‡½æ•°æŒ‡é’ˆ
     OriginalCreateWindowExW = CreateWindowExW;
     OriginalDestroyWindow = DestroyWindow;
     OriginalBeginPaint = BeginPaint;
@@ -513,7 +513,7 @@ void HookManager::InstallHooks() {
         }
     }*/
 
-    // ¸½¼Ó¹³×Ó
+    // é™„åŠ é’©å­
     DetourAttach(&(PVOID&)OriginalCreateWindowExW, HookedCreateWindowExW);
     DetourAttach(&(PVOID&)OriginalDestroyWindow, HookedDestroyWindow);
     
@@ -563,11 +563,11 @@ void HookManager::InstallHooks() {
     LONG error = DetourTransactionCommit();
     if (error != NO_ERROR) {
         LogDetourError(error);
-        is_installHooks = false; // ÖØÖÃ°²×°×´Ì¬
+        is_installHooks = false; // é‡ç½®å®‰è£…çŠ¶æ€
         return;
     }
 
-    // ³õÊ¼»¯ÅäÖÃ
+    // åˆå§‹åŒ–é…ç½®
     RefreshConfig();
 
     LOG_INFO("[HookManager.cpp][InstallHooks]", "Hooks installed successfully");
@@ -592,10 +592,10 @@ void HookManager::InstallHooks() {
 }
 
 struct Hub_BackgroundFields {
-    char padding[0x5E0]; // Ìî³äµ½Ä¿±ê³ÉÔ±Ö®Ç°µÄÆ«ÒÆ
+    char padding[0x5E0]; // å¡«å……åˆ°ç›®æ ‡æˆå‘˜ä¹‹å‰çš„åç§»
     bool m_isBackgroundStatic;
     bool m_isBackgroundValid;
-    // ×¢Òâ£ºÕâÀïÎÒÃÇ²»¹ØĞÄºóÃæµÄ³ÉÔ±£¬ËùÒÔ²»ĞèÒª¶¨Òå
+    // æ³¨æ„ï¼šè¿™é‡Œæˆ‘ä»¬ä¸å…³å¿ƒåé¢çš„æˆå‘˜ï¼Œæ‰€ä»¥ä¸éœ€è¦å®šä¹‰
 };
 
 BOOL WINAPI HookManager::HookedCreateProcessW(
@@ -610,14 +610,14 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
     LPSTARTUPINFOW lpStartupInfo,
     LPPROCESS_INFORMATION lpProcessInformation
 ) {
-    // Ê×ÏÈµ÷ÓÃÔ­Ê¼º¯Êı´´½¨½ø³Ì
+    // é¦–å…ˆè°ƒç”¨åŸå§‹å‡½æ•°åˆ›å»ºè¿›ç¨‹
     BOOL result = OriginalCreateProcessW(
         lpApplicationName,
         lpCommandLine,
         lpProcessAttributes,
         lpThreadAttributes,
         bInheritHandles,
-        dwCreationFlags | CREATE_SUSPENDED, // ¹ÒÆğ½ø³ÌÒÔ±ã×¢Èë
+        dwCreationFlags | CREATE_SUSPENDED, // æŒ‚èµ·è¿›ç¨‹ä»¥ä¾¿æ³¨å…¥
         lpEnvironment,
         lpCurrentDirectory,
         lpStartupInfo,
@@ -629,7 +629,7 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
         return FALSE;
     }
 
-    // ¼ì²éÊÇ·ñÊÇ×ÊÔ´¹ÜÀíÆ÷
+    // æ£€æŸ¥æ˜¯å¦æ˜¯èµ„æºç®¡ç†å™¨
     bool isExplorer = false;
     if (lpApplicationName) {
         std::wstring appName(lpApplicationName);
@@ -643,11 +643,11 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
     if (isExplorer) {
         LOG_INFO("[HookManager][HookedCreateProcessW]", "Injecting into new explorer process");
 
-        // »ñÈ¡µ±Ç°DLLÂ·¾¶
+        // è·å–å½“å‰DLLè·¯å¾„
         WCHAR dllPath[MAX_PATH];
         GetModuleFileNameW(g_hModule, dllPath, MAX_PATH);
 
-        // ÔÚÄ¿±ê½ø³ÌÖĞ·ÖÅäÄÚ´æ
+        // åœ¨ç›®æ ‡è¿›ç¨‹ä¸­åˆ†é…å†…å­˜
         LPVOID remotePath = VirtualAllocEx(
             lpProcessInformation->hProcess,
             NULL,
@@ -662,7 +662,7 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
             return result;
         }
 
-        // Ğ´ÈëDLLÂ·¾¶
+        // å†™å…¥DLLè·¯å¾„
         WriteProcessMemory(
             lpProcessInformation->hProcess,
             remotePath,
@@ -671,13 +671,13 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
             NULL
         );
 
-        // »ñÈ¡LoadLibraryµØÖ·
+        // è·å–LoadLibraryåœ°å€
         LPTHREAD_START_ROUTINE loadLibAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(
             GetModuleHandleW(L"kernel32.dll"),
             "LoadLibraryW"
         );
 
-        // ´´½¨Ô¶³ÌÏß³Ì¼ÓÔØDLL
+        // åˆ›å»ºè¿œç¨‹çº¿ç¨‹åŠ è½½DLL
         HANDLE hThread = CreateRemoteThread(
             lpProcessInformation->hProcess,
             NULL,
@@ -693,23 +693,23 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
             VirtualFreeEx(lpProcessInformation->hProcess, remotePath, 0, MEM_RELEASE);
         }
         else {
-            // µÈ´ıDLL¼ÓÔØÍê³É
+            // ç­‰å¾…DLLåŠ è½½å®Œæˆ
             WaitForSingleObject(hThread, INFINITE);
 
-            // »ñÈ¡DLLÄ£¿é¾ä±ú
+            // è·å–DLLæ¨¡å—å¥æŸ„
             DWORD exitCode;
             GetExitCodeThread(hThread, &exitCode);
             HMODULE hInjectedDll = (HMODULE)exitCode;
 
             if (hInjectedDll) {
-                // »ñÈ¡SetRemote_Configº¯ÊıµØÖ·
+                // è·å–SetRemote_Configå‡½æ•°åœ°å€
                 auto setConfigAddr = (void (WINAPI*)(Remote_Config*))GetProcAddress(
                     hInjectedDll,
                     "SetRemote_Config"
                 );
 
                 if (setConfigAddr) {
-                    // ÔÚÄ¿±ê½ø³Ì·ÖÅäÅäÖÃÄÚ´æ
+                    // åœ¨ç›®æ ‡è¿›ç¨‹åˆ†é…é…ç½®å†…å­˜
                     LPVOID remoteConfig = VirtualAllocEx(
                         lpProcessInformation->hProcess,
                         NULL,
@@ -731,7 +731,7 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
                         pRemoteConfig.imageOpacity = HookManager::m_config.imageOpacity;
                         pRemoteConfig.imageBlurRadius = HookManager::m_config.imageBlurRadius;
                         pRemoteConfig.smallborder = HookManager::m_config.smallborder;
-                        // Ğ´Èëµ±Ç°ÅäÖÃ
+                        // å†™å…¥å½“å‰é…ç½®
                         WriteProcessMemory(
                             lpProcessInformation->hProcess,
                             remoteConfig,
@@ -740,7 +740,7 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
                             NULL
                         );
 
-                        // ´´½¨Ïß³Ìµ÷ÓÃÅäÖÃº¯Êı
+                        // åˆ›å»ºçº¿ç¨‹è°ƒç”¨é…ç½®å‡½æ•°
                         HANDLE hConfigThread = CreateRemoteThread(
                             lpProcessInformation->hProcess,
                             NULL,
@@ -765,7 +765,7 @@ BOOL WINAPI HookManager::HookedCreateProcessW(
         }
     }
 
-    // »Ö¸´Ö÷Ïß³Ì
+    // æ¢å¤ä¸»çº¿ç¨‹
     ResumeThread(lpProcessInformation->hThread);
     return result;
 }
@@ -805,7 +805,7 @@ void HookManager::LogDetourError(LONG error) {
 
     if (messageBuffer) LocalFree(messageBuffer);
 
-    // ÏêÏ¸¹³×Ó×´Ì¬ÈÕÖ¾
+    // è¯¦ç»†é’©å­çŠ¶æ€æ—¥å¿—
     LOG_DEBUG("[HookManager.cpp][InstallHooks]", "Hook attachment status:");
 #define LOG_HOOK_STATUS(func) \
         LOG_DEBUG("    " #func ": ", Original##func ? "Attached" : "Not attached")
@@ -843,32 +843,32 @@ void __fastcall HookManager::HookedElementPaint(
     RECT* prcBorder,
     RECT* prcContent
 ) {
-    // ¹Ø¼ü²½Öè£ºÌø¹ıÔ­Ê¼»æÖÆÂß¼­
-    // 1. Ö±½ÓÇå¿Õ±³¾°ÎªÍ¸Ã÷
+    // å…³é”®æ­¥éª¤ï¼šè·³è¿‡åŸå§‹ç»˜åˆ¶é€»è¾‘
+    // 1. ç›´æ¥æ¸…ç©ºèƒŒæ™¯ä¸ºé€æ˜
     // if (prcBounds) {
-       //  HBRUSH hTransparent = CreateSolidBrush(0x00000000); // ÍêÈ«Í¸Ã÷
+       //  HBRUSH hTransparent = CreateSolidBrush(0x00000000); // å®Œå…¨é€æ˜
         //  FillRect(hdc, prcBounds, hTransparent);
         //  DeleteObject(hTransparent);
         // }
 
-    // 2. ¿ÉÑ¡£ºÌø¹ı±ß¿ò/ÄÚÈİ»æÖÆ
-    // Èç¹ûĞèÒªÍêÈ«½ûÓÃËùÓĞ»æÖÆ£¬Ö±½Ó·µ»Ø¼´¿É£º
+    // 2. å¯é€‰ï¼šè·³è¿‡è¾¹æ¡†/å†…å®¹ç»˜åˆ¶
+    // å¦‚æœéœ€è¦å®Œå…¨ç¦ç”¨æ‰€æœ‰ç»˜åˆ¶ï¼Œç›´æ¥è¿”å›å³å¯ï¼š
     // return;
 
-    // 3. ÈçĞè±£Áô·Ç±³¾°²¿·Ö£¬µ÷ÓÃÔ­Ê¼º¯Êıµ«Ìø¹ı±³¾°»æÖÆ
-    // ÕâÀïÍ¨¹ıĞŞ¸Ä²ÎÊıÆÛÆ­Ô­Ê¼º¯Êı
+    // 3. å¦‚éœ€ä¿ç•™éèƒŒæ™¯éƒ¨åˆ†ï¼Œè°ƒç”¨åŸå§‹å‡½æ•°ä½†è·³è¿‡èƒŒæ™¯ç»˜åˆ¶
+    // è¿™é‡Œé€šè¿‡ä¿®æ”¹å‚æ•°æ¬ºéª—åŸå§‹å‡½æ•°
     // RECT emptyRect = { 0, 0, 0, 0 };
     OriginalElementPaint(
         pThis,
         hdc,
         prcBounds,
         prcInvalid,
-        prcBorder,  // ÆÛÆ­º¯ÊıÈÏÎªÎŞ±ß¿ò
-        prcContent   // ÆÛÆ­º¯ÊıÈÏÎªÎŞÄÚÈİ
+        prcBorder,  // æ¬ºéª—å‡½æ•°è®¤ä¸ºæ— è¾¹æ¡†
+        prcContent   // æ¬ºéª—å‡½æ•°è®¤ä¸ºæ— å†…å®¹
     );
 }
 
-// AlphaBlend ¹³×ÓÊµÏÖ
+// AlphaBlend é’©å­å®ç°
 BOOL WINAPI HookManager::HookedAlphaBlend(
     HDC hdcDest, int xDest, int yDest, int wDest, int hDest,
     HDC hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc,
@@ -878,7 +878,7 @@ BOOL WINAPI HookManager::HookedAlphaBlend(
 	return TRUE;
 }
 
-// GdiGradientFill ¹³×ÓÊµÏÖ
+// GdiGradientFill é’©å­å®ç°
 BOOL WINAPI HookManager::HookedGradientFill(
     HDC hdc, PTRIVERTEX pVertex, ULONG nVertex,
     PVOID pMesh, ULONG nMesh, ULONG ulMode)
@@ -888,7 +888,7 @@ BOOL WINAPI HookManager::HookedGradientFill(
 }
 
 COLORREF HookManager::MakeTransparent(COLORREF color) {
-    // ±£ÁôAlphaÍ¨µÀ£¬½«RGBÉèÎª0 (ÍêÈ«Í¸Ã÷)
+    // ä¿ç•™Alphaé€šé“ï¼Œå°†RGBè®¾ä¸º0 (å®Œå…¨é€æ˜)
     return (color & 0xFF000000);
 }
 
@@ -898,22 +898,22 @@ void ApplyTransparency(void* pValue1) {
 
     switch (bgType)
     {
-    // ´¿É«±³¾°
+    // çº¯è‰²èƒŒæ™¯
         
     case 2: {
-        color = 0x00000000; // ÍêÈ«Í¸Ã÷
+        color = 0x00000000; // å®Œå…¨é€æ˜
         break;
 
-        // ½¥±ä±³¾°
+        // æ¸å˜èƒŒæ™¯
         }
     case 0: case 1: case 3: case 4:
 	    {
-		    // »ñÈ¡½¥±äÑÕÉ«Êı×é (Æ«ÒÆÁ¿»ùÓÚ·´»ã±à·ÖÎö)
+		    // è·å–æ¸å˜é¢œè‰²æ•°ç»„ (åç§»é‡åŸºäºåæ±‡ç¼–åˆ†æ)
     		TRIVERTEX * vertices = *(TRIVERTEX**)((BYTE*)pValue1 + 0x18);
     		int vertexCount = *(int*)((BYTE*)pValue1 + 0x20);
 
     		for (int i = 0; i < vertexCount; i++) {
-    			// Ö»±£ÁôAlphaÍ¨µÀ£¬RGBÉèÎª0
+    			// åªä¿ç•™Alphaé€šé“ï¼ŒRGBè®¾ä¸º0
     			vertices[i].Red = 0;
     			vertices[i].Green = 0;
     			vertices[i].Blue = 0;
@@ -971,7 +971,7 @@ BOOL HookManager::HookedGdiAlphaBlend(HDC hdcDest,
     int hSrc, BLENDFUNCTION ftn)
 {
     /*
-     * ¿ÉÒÔÔÚÕâÀïÊµÏÖÍ¼±êµÄĞŞ¸Ä
+     * å¯ä»¥åœ¨è¿™é‡Œå®ç°å›¾æ ‡çš„ä¿®æ”¹
      */
 
     return OriginalGdiAlphaBlend(hdcDest, xoriginDest, yoriginDest, wDest, hDest, hdcSrc, xoriginSrc, yoriginSrc, wSrc, hSrc, ftn);
@@ -982,7 +982,7 @@ BOOL __stdcall HookManager::HookedStretchBlt(HDC hdcDest, int xDest, int yDest, 
     return OriginalStretchBlt(hdcDest, xDest, yDest, wDest, hDest, hdcSrc, xSrc, ySrc, wSrc, hSrc, rop);
 }
 
-// Rectangle ¹³×ÓÊµÏÖ
+// Rectangle é’©å­å®ç°
 BOOL WINAPI HookManager::HookedRectangle(
     HDC hdc, int left, int top, int right, int bottom)
 {
@@ -990,28 +990,28 @@ BOOL WINAPI HookManager::HookedRectangle(
 	return TRUE;
 }
 
-// SetBkColor ¹³×ÓÊµÏÖ - Í¸Ã÷Ä£Ê½ÏÂÈÔĞèÒªÉèÖÃ£¬µ«²»Ó°ÏìäÖÈ¾
+// SetBkColor é’©å­å®ç° - é€æ˜æ¨¡å¼ä¸‹ä»éœ€è¦è®¾ç½®ï¼Œä½†ä¸å½±å“æ¸²æŸ“
 COLORREF WINAPI HookManager::HookedSetBkColor(HDC hdc, COLORREF color)
 {
 	LOG_DEBUG("[HookManager][SetBkColor]", "Set background color in transparency mode: ", color);
     return OriginalSetBkColor(hdc, color);
 }
 
-// SetDCBrushColor ¹³×ÓÊµÏÖ
+// SetDCBrushColor é’©å­å®ç°
 COLORREF WINAPI HookManager::HookedSetDCBrushColor(HDC hdc, COLORREF color)
 {
 	LOG_DEBUG("[HookManager][SetDCBrushColor]", "Set DC brush color in transparency mode: ", color);
     return OriginalSetDCBrushColor(hdc, color);
 }
 
-// SetDCPenColor ¹³×ÓÊµÏÖ
+// SetDCPenColor é’©å­å®ç°
 COLORREF WINAPI HookManager::HookedSetDCPenColor(HDC hdc, COLORREF color)
 {
 	LOG_DEBUG("[HookManager][SetDCPenColor]", "Set DC pen color in transparency mode: ", color);
     return OriginalSetDCPenColor(hdc, color);
 }
 
-// GetDCPenColor ¹³×ÓÊµÏÖ - ±ØĞëÕı³£´¦Àí
+// GetDCPenColor é’©å­å®ç° - å¿…é¡»æ­£å¸¸å¤„ç†
 COLORREF WINAPI HookManager::HookedGetDCPenColor(HDC hdc)
 {
     return OriginalGetDCPenColor(hdc);
@@ -1020,14 +1020,14 @@ COLORREF WINAPI HookManager::HookedGetDCPenColor(HDC hdc)
 BOOL WINAPI HookManager::HookedBitBlt(
     HDC hdc, int x, int y, int cx, int cy, HDC hdcSrc, int x1, int y1, DWORD rop)
 {
-    /*// ´´½¨Ò»¸öÓëÄ¿±ê¼æÈİµÄÁÙÊ±DC
+    /*// åˆ›å»ºä¸€ä¸ªä¸ç›®æ ‡å…¼å®¹çš„ä¸´æ—¶DC
     HDC hTempDC = CreateCompatibleDC(hdc);
     if (!hTempDC) {
         LOG_ERROR("[HookManager.cpp][HookedBitBlt]", "Failed to create compatible DC");
         return OriginalBitBlt(hdc, x, y, cx, cy, hdcSrc, x1, y1, rop);
     }
 
-    // ´´½¨Í¸Ã÷Î»Í¼
+    // åˆ›å»ºé€æ˜ä½å›¾
     BITMAPINFO bmi = { 0 };
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = cx;
@@ -1044,18 +1044,18 @@ BOOL WINAPI HookManager::HookedBitBlt(
         return OriginalBitBlt(hdc, x, y, cx, cy, hdcSrc, x1, y1, rop);
     }
 
-    // ½«Î»Í¼Êı¾İÌî³äÎªÈ«Í¸Ã÷
+    // å°†ä½å›¾æ•°æ®å¡«å……ä¸ºå…¨é€æ˜
     if (pBits) {
-        memset(pBits, 0, cx * cy * 4); // 32Î» = 4×Ö½Ú/ÏñËØ
+        memset(pBits, 0, cx * cy * 4); // 32ä½ = 4å­—èŠ‚/åƒç´ 
     }
 
-    // Ñ¡ÈëDC
+    // é€‰å…¥DC
     HGDIOBJ hOldBmp = SelectObject(hTempDC, hTransparentBmp);
 
-    // Ö´ĞĞÍ¸Ã÷¸´ÖÆ
+    // æ‰§è¡Œé€æ˜å¤åˆ¶
     BOOL result = OriginalBitBlt(hdc, x, y, cx, cy, hTempDC, 0, 0, SRCCOPY);
 
-    // ÇåÀí×ÊÔ´
+    // æ¸…ç†èµ„æº
     SelectObject(hTempDC, hOldBmp);
     DeleteObject(hTransparentBmp);
     DeleteDC(hTempDC);*/
@@ -1095,7 +1095,7 @@ void HookManager::RemoveHooks() {
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
 
-    // ÒÆ³ı¹³×Ó
+    // ç§»é™¤é’©å­
     DetourDetach(&(PVOID&)OriginalCreateWindowExW, HookedCreateWindowExW);
     DetourDetach(&(PVOID&)OriginalDestroyWindow, HookedDestroyWindow);
     DetourDetach(&(PVOID&)OriginalBeginPaint, HookedBeginPaint);
@@ -1116,7 +1116,7 @@ void HookManager::RemoveHooks() {
 
     DetourTransactionCommit();
 
-    // ÇåÀí×ÊÔ´
+    // æ¸…ç†èµ„æº
     if (m_clearBrush) {
         DeleteObject(m_clearBrush);
         m_clearBrush = nullptr;
@@ -1130,7 +1130,7 @@ void HookManager::RemoveHooks() {
 }
 
 ATOM WINAPI HookManager::HookedRegisterClassExW(CONST WNDCLASSEXW* lpWndClass) {
-    // ¼ì²éÊÇ·ñÊÇÄ¿±ê´°¿ÚÀà
+    // æ£€æŸ¥æ˜¯å¦æ˜¯ç›®æ ‡çª—å£ç±»
     if (lpWndClass && lpWndClass->lpszClassName) {
         std::wstring className(lpWndClass->lpszClassName);
 
@@ -1142,7 +1142,7 @@ ATOM WINAPI HookManager::HookedRegisterClassExW(CONST WNDCLASSEXW* lpWndClass) {
         }
     }
 
-    // ·ÇÄ¿±êÀà£¬Õı³£×¢²á
+    // éç›®æ ‡ç±»ï¼Œæ­£å¸¸æ³¨å†Œ
     return OriginalRegisterClassExW(lpWndClass);
 }
 
@@ -1177,7 +1177,7 @@ DWORD HookManager::GetSystemThemeColor() {
     DWORD color = 0;
     BOOL opaque = FALSE;
     if (SUCCEEDED(DwmGetColorizationColor(&color, &opaque))) {
-        return color & 0x00FFFFFF; // ·µ»Ø RGB ²¿·Ö
+        return color & 0x00FFFFFF; // è¿”å› RGB éƒ¨åˆ†
     }
     return 0x000000;
 }
@@ -1229,14 +1229,17 @@ bool HookManager::SetTaskbarTransparency(HWND hwnd, HookManager::AccentState acc
     BYTE r = GetRValue(color);
     BYTE g = GetGValue(color);
     BYTE b = GetBValue(color);
-    BYTE finalAlpha = useCustomAlpha ? alpha : 0xFF; // Use alpha only for system color
 
-    // Construct ABGR format gradientColor
+    // Always respect caller alpha
+    BYTE finalAlpha = alpha;
+
+    // Construct ARGB format gradientColor (NOT ABGR)
     DWORD gradientColor =
         (static_cast<DWORD>(finalAlpha) << 24) |  // Alpha
-        (static_cast<DWORD>(b) << 16) |           // Blue
+        (static_cast<DWORD>(r) << 16) |           // Red
         (static_cast<DWORD>(g) << 8) |            // Green
-        r;                                        // Red
+        b;                                        // Blue
+
 
     AccentPolicy accent = {
         accentState,
@@ -1267,10 +1270,10 @@ void HookManager::RefreshConfig() {
         m_clearBrush = CreateSolidBrush(0x00000000);
     }
     LOG_INFO("[HookManager.cpp][RefreshConfig]", "Refreshing configuration");
-    // ´ÓConfigManager»ñÈ¡ÅäÖÃ
+    // ä»ConfigManagerè·å–é…ç½®
     const auto& config = ConfigManager::GetConfig();
 
-    // ÉèÖÃĞ§¹ûÀàĞÍ
+    // è®¾ç½®æ•ˆæœç±»å‹
     switch (config.effectType) {
     case ConfigManager::EffectType::Acrylic:
         m_config.effType = 1;
@@ -1306,7 +1309,7 @@ void HookManager::RefreshConfig() {
 
 int WINAPI HookManager::HookedDrawTextW(HDC hdc, LPCWSTR lpchText, int cchText, LPRECT lprc, UINT format)
 {
-    // Ìø¹ı¼ÆËã¾ØĞÎ»òÒÑ´¦ÀíµÄÏß³Ì
+    // è·³è¿‡è®¡ç®—çŸ©å½¢æˆ–å·²å¤„ç†çš„çº¿ç¨‹
     if ((format & DT_CALCRECT) || m_drawtextState.find(GetCurrentThreadId()) != m_drawtextState.end()) {
         return OriginalDrawTextW(hdc, lpchText, cchText, lprc, format);
     }
@@ -1411,7 +1414,7 @@ BOOL __stdcall HookManager::HookedExtTextOutW(
                     return OriginalDrawTextW(hdc, text, len, rect, format);
                 };
 
-            // Ê¹ÓÃAlphaBuffer½øĞĞ»æÖÆ
+            // ä½¿ç”¨AlphaBufferè¿›è¡Œç»˜åˆ¶
             auto drawFunc = [&](HDC hDC) {
                 HTHEME hTheme = OpenThemeData(nullptr, L"Menu");
                 if (!hTheme) return;
@@ -1438,7 +1441,7 @@ BOOL __stdcall HookManager::HookedExtTextOutW(
                         }
                         else
                         {
-                            // »æÖÆµ±Ç°Åú´Î
+                            // ç»˜åˆ¶å½“å‰æ‰¹æ¬¡
                             hr = OriginalDrawThemeTextEx(hTheme, hDC, 0, 0,
                                 batchStr.c_str(), batchStr.length(),
                                 DT_LEFT | DT_TOP | DT_SINGLELINE, &batchRc, &opts);
@@ -1450,7 +1453,7 @@ BOOL __stdcall HookManager::HookedExtTextOutW(
                         }
                     }
 
-                    // »æÖÆ×îºóÒ»Åú
+                    // ç»˜åˆ¶æœ€åä¸€æ‰¹
                     if (i == c - 1)
                     {
                         hr = OriginalDrawThemeTextEx(hTheme, hDC, 0, 0,
@@ -1501,7 +1504,7 @@ HDC __stdcall HookManager::HookedCreateCompatibleDC(HDC hDC)
 }
 
 BOOL WINAPI HookManager::HookedPatBlt(HDC hdc, int x, int y, int w, int h, DWORD rop) {
-    // ĞŞ¸´Ñ¡Ôñ¿òAlpha
+    // ä¿®å¤é€‰æ‹©æ¡†Alpha
     if (IsDUIThread() && rop == PATCOPY) {
         static std::unordered_map<DWORD, bool> thList;
 
@@ -1534,7 +1537,7 @@ HRESULT WINAPI HookManager::HookedGetThemeColor(
         "When the program tries to get the color of the component, the intercepted component is called:",
         className);
 
-    // ½«¹Ø¼ü¿Ø¼ş±³¾°ÉèÎªºÚÉ«ÒÔÊµÏÖÍ¸Ã÷Ğ§¹û
+    // å°†å…³é”®æ§ä»¶èƒŒæ™¯è®¾ä¸ºé»‘è‰²ä»¥å®ç°é€æ˜æ•ˆæœ
     if (iPropId == TMT_FILLCOLOR && IsDUIThread())
     {
         if (((className == L"ItemsView" || className == L"ExplorerStatusBar" || className == L"ExplorerNavPane")
@@ -1709,7 +1712,7 @@ HRESULT __stdcall HookManager::HookedDrawThemeBackground(
     std::wstring className = GetThemeClassName(hTheme);
     LOG_DEBUG("[HookManager.cpp][HookedDrawThemeBackground]", "Get the component when drawing the theme:", className);
    
-    // ÓÃ OutputDebugStringA ÔÙÊä³öÒ»´Î
+    // ç”¨ OutputDebugStringA å†è¾“å‡ºä¸€æ¬¡
     /*{
         std::string msg = "[HookManager.cpp][HookedDrawThemeBackground] className = "
             + std::string(className.begin(), className.end()) + "\n";
@@ -1746,7 +1749,7 @@ HRESULT __stdcall HookManager::HookedDrawThemeBackgroundEx(
     std::wstring className = GetThemeClassName(hTheme);
     LOG_DEBUG("[HookManager.cpp][HookedDrawThemeBackgroundEx]", "Get the component when drawing the theme:", className);
 
-    // ÓÃ OutputDebugStringA ÔÙÊä³öÒ»´Î
+    // ç”¨ OutputDebugStringA å†è¾“å‡ºä¸€æ¬¡
     {
         std::string msg = "[HookManager.cpp][HookedDrawThemeBackgroundEx] className = "
             + std::string(className.begin(), className.end()) + "\n";
@@ -1777,38 +1780,55 @@ HRESULT __stdcall HookManager::HookedDrawThemeBackgroundEx(
 }
 
 
-void HookManager::StartAero(HWND hwnd, int type, COLORREF color, bool blend){
-    if (SetWindowCompositionAttribute)
+void HookManager::StartAero(HWND hwnd, int type, COLORREF color, int transparencyPercent, bool blend)
+{
+    if (!SetWindowCompositionAttribute)
+        return;
+
+    ACCENTPOLICY policy = { type == 0 ? 3 : 4, 0, 0, 0 };
+
+    if (blend)
     {
-        ACCENTPOLICY policy = { type == 0 ? 3 : 4, 0, 0, 0 };
-        if (blend)
-        {
-            policy.nFlags = 3;
-            policy.nColor = color;
-        }
-        else if (type == 1)
-        {
-            policy.nFlags = 1;
-            policy.nColor = 0x00FFFFFF;
-        }
-        else
-        {
-            policy.nFlags = 0;
-            policy.nColor = 0;
-        }
-        WINCOMPATTRDATA data = { 19, &policy, sizeof(ACCENTPOLICY) };
-        SetWindowCompositionAttribute(hwnd, &data);
+        policy.nFlags = 2;
+
+        // color æ˜¯ COLORREF (0x00BBGGRR)
+        BYTE r = GetRValue(color);
+        BYTE g = GetGValue(color);
+        BYTE b = GetBValue(color);
+
+        // transparencyPercent: 0~100ï¼Œ0=å®Œå…¨é€æ˜ï¼Œ100=å®Œå…¨ä¸é€æ˜
+        BYTE a = static_cast<BYTE>((transparencyPercent * 255 + 50) / 100); // å››èˆäº”å…¥
+
+        policy.nColor = (a << 24) | (b << 16) | (g << 8) | r;
     }
+    else if (type == 1)
+    {
+        policy.nFlags = 1;
+
+        BYTE a = static_cast<BYTE>((transparencyPercent * 255 + 50) / 100);
+        policy.nColor = (a << 24) | (255 << 16) | (255 << 8) | 255; // ç™½è‰²+é€æ˜åº¦
+    }
+    else
+    {
+        policy.nFlags = 0;
+        policy.nColor = 0;
+    }
+
+    WINCOMPATTRDATA data = { 19, &policy, sizeof(ACCENTPOLICY) };
+    SetWindowCompositionAttribute(hwnd, &data);
 }
+
+
+
 
 inline BYTE M_GetAValue(COLORREF rgba) {
     return BYTE(ULONG(rgba >> 24) & 0xff);
 }
 
-// ´°¿ÚÄ£ºıĞ§¹ûÉèÖÃ
+// çª—å£æ¨¡ç³Šæ•ˆæœè®¾ç½®
 void HookManager::SetWindowBlur(HWND hWnd) {
     LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Setting blur for window: ", hWnd);
-    bool isBlend = M_GetAValue(m_config.blendColor) != 0;
+    bool isBlend = m_config.blendColor != 0;
     DWORD build = WindowsVersion::GetBuildNumber();
 
     try {
@@ -1821,27 +1841,31 @@ void HookManager::SetWindowBlur(HWND hWnd) {
             OnWindowSize(hWnd, pRect.bottom - pRect.top);
             if (m_config.effType == 1)
             {
-                int type = 0;
-                OriginalDwmSetWindowAttribute(hWnd, 1029, &type, sizeof(type));
+                //int type = 0;
+                //OriginalDwmSetWindowAttribute(hWnd, 1029, &type, sizeof(type));
 
                 DWM_BLURBEHIND blur = { 0 };
                 blur.dwFlags = DWM_BB_ENABLE;
                 blur.fEnable = TRUE;
-
                 DwmEnableBlurBehindWindow(hWnd, &blur);
 
                 if (isBlend){
-	                StartAero(hWnd, 1, m_config.blendColor, true);
+	                StartAero(hWnd, 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, true);
                 }
                 else {
-                    DWM_SYSTEMBACKDROP_TYPE type1 = DWMSBT_TRANSIENTWINDOW;
+                    DWM_SYSTEMBACKDROP_TYPE type1 = DWMSBT_NONEDWMSBT_TRANSIENTWINDOW;
                     OriginalDwmSetWindowAttribute(hWnd, DWMWA_SYSTEMBACKDROP_TYPE, &type1, sizeof(type1));
                 }
             }
-            else if (m_config.effType == 0) {
-	            if (isBlend)
+            else if (m_config.effType == 3) {
+                DWM_BLURBEHIND blur = { 0 };
+                blur.dwFlags = DWM_BB_ENABLE;
+                blur.fEnable = TRUE;
+                DwmEnableBlurBehindWindow(hWnd, &blur);
+
+	            if (!m_config.automatic_acquisition_color)
 	            {
-                    SetTaskbarTransparency(hWnd, AccentState::ACCENT_ENABLE_TRANSPARENTGRADIENT, m_config.blendColor);
+                    SetTaskbarTransparency(hWnd, AccentState::ACCENT_ENABLE_TRANSPARENTGRADIENT, m_config.blendColor,m_config.automatic_acquisition_color_transparency);
 	            }
 	            else
 	            {
@@ -1850,8 +1874,21 @@ void HookManager::SetWindowBlur(HWND hWnd) {
                     }
                     SetTaskbarTransparency(hWnd, AccentState::ACCENT_ENABLE_TRANSPARENTGRADIENT, -1, m_config.automatic_acquisition_color_transparency);
 	            }
-                
             }
+			else if (m_config.effType == 2) {
+                DWM_BLURBEHIND blur = { 0 };
+                blur.dwFlags = DWM_BB_ENABLE;
+                blur.fEnable = TRUE;
+                DwmEnableBlurBehindWindow(hWnd, &blur);
+
+                if (isBlend) {
+                    StartAero(hWnd, 3, m_config.blendColor, m_config.automatic_acquisition_color_transparency, true);
+                }
+                else {
+                    DWM_SYSTEMBACKDROP_TYPE type1 = DWMSBT_NONEDWMSBT_TRANSIENTWINDOW;
+                    OriginalDwmSetWindowAttribute(hWnd, DWMWA_SYSTEMBACKDROP_TYPE, &type1, sizeof(type1));
+                }
+			}
             LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Using Windows 11 blur method");
             return;
         }
@@ -1863,30 +1900,30 @@ void HookManager::SetWindowBlur(HWND hWnd) {
             int type = 0;
             OriginalDwmSetWindowAttribute(hWnd, 1029, &type, sizeof(type));
 
-            StartAero(hWnd, 0, m_config.blendColor, isBlend);
+            StartAero(hWnd, 0, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
             break;
         }
         case 1:
         {
-            //È¡Ïû±êÌâÀ¸µÄMicaĞ§¹û
+            //å–æ¶ˆæ ‡é¢˜æ çš„Micaæ•ˆæœ
             int type = 0;
             HRESULT hr = OriginalDwmSetWindowAttribute(hWnd, 1029, &type, sizeof(type));
 
-            StartAero(hWnd, 1, m_config.blendColor, isBlend);
+            StartAero(hWnd, 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
 
-            //ÉèÖÃ±êÌâÀ¸ÑÕÉ«
+            //è®¾ç½®æ ‡é¢˜æ é¢œè‰²
             COLORREF color = m_config.blendColor;
             OriginalDwmSetWindowAttribute(hWnd, DWMWA_CAPTION_COLOR, &color, sizeof(color));
             break;
         }
         case 2:
-            StartAero(hWnd, 2, 0, false);
+            StartAero(hWnd, 2, 0, m_config.automatic_acquisition_color_transparency, false);
         }
         LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Using Windows 11 blur method");
     }
     else
     {
-	    StartAero(hWnd, m_config.effType == 1 ? 0 : 1, m_config.blendColor, isBlend);
+	    StartAero(hWnd, m_config.effType == 1 ? 0 : 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
         LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Using Windows 10 blur method");
     }
     }
@@ -1903,17 +1940,17 @@ void HookManager::SetWindowBlur(HWND hWnd) {
 
 void HookManager::OnWindowSize(HWND hWnd, int newHeight)
 {
-    MARGINS margin = { -1 };
-    if (M_GetAValue(m_config.blendColor) != 0 && m_config.effType == 1) {
-        margin.cyTopHeight = GetSystemMetricsForDpi(SM_CYCAPTION, GetDpiForWindow(hWnd)) + 10;
-    }
-    else
-    {
-        margin = { 0 };
-        margin.cyTopHeight = newHeight;
-    }
-    OriginalDwmExtendFrameIntoClientArea(hWnd, &margin);
-    DwmFlush();
+    DWMNCRENDERINGPOLICY enableNcRendering = DWMNCRP_ENABLED;
+    OriginalDwmSetWindowAttribute(hWnd, DWMWA_NCRENDERING_POLICY, &enableNcRendering, sizeof(enableNcRendering));
+    // å…è®¸çª—å£å†…å®¹æ‰©å±•åˆ°æ ‡é¢˜æ åŒºåŸŸ
+    BOOL extendFrame = TRUE;
+    OriginalDwmSetWindowAttribute(hWnd, DWMWA_EXTENDED_FRAME_BOUNDS, &extendFrame, sizeof(extendFrame));
+    MARGINS margins = { -1 };
+    margins.cyTopHeight = GetSystemMetricsForDpi(SM_CYCAPTION, GetDpiForWindow(hWnd)) + 10;
+    OriginalDwmExtendFrameIntoClientArea(hWnd, &margins);
+    //BOOL type2 = FALSE;
+    //OriginalDwmSetWindowAttribute(hWnd, DWMWA_USE_HOSTBACKDROPBRUSH, &type2, sizeof(type2));
+    //DwmFlush();
 }
 
 HRESULT HookManager::DwmUpdateAccentBlurRect(HWND hWnd, RECT* prc)
@@ -1928,7 +1965,7 @@ HRESULT HookManager::DwmUpdateAccentBlurRect(HWND hWnd, RECT* prc)
     return E_NOTIMPL;
 }
 
-// ×ÓÀà»¯´°¿Ú¹ı³Ì
+// å­ç±»åŒ–çª—å£è¿‡ç¨‹
 LRESULT WINAPI HookManager::WndSubProc(
     HWND hWnd, UINT message, WPARAM wparam, LPARAM lparam,
     UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
@@ -1942,7 +1979,7 @@ LRESULT WINAPI HookManager::WndSubProc(
         }
     }
 
-    // ¶¨Òå¸üĞÂ´°¿Ú³ß´çµÄLambdaº¯Êı£¨¼õÉÙÖØ¸´´úÂë£©
+    // å®šä¹‰æ›´æ–°çª—å£å°ºå¯¸çš„Lambdaå‡½æ•°ï¼ˆå‡å°‘é‡å¤ä»£ç ï¼‰
     auto UpdateWindowSize = [hWnd]() {
         RECT rect;
         GetWindowRect(hWnd, &rect);
@@ -1954,7 +1991,7 @@ LRESULT WINAPI HookManager::WndSubProc(
             return false;
         }
 
-        // ¼ÓÔØÍ¼Æ¬
+        // åŠ è½½å›¾ç‰‡
         HBITMAP hBitmap = (HBITMAP)LoadImageW(
             NULL,
             HookManager::m_config.imagePath.c_str(),
@@ -1967,22 +2004,22 @@ LRESULT WINAPI HookManager::WndSubProc(
             return false;
         }
 
-        // »ñÈ¡´°¿Ú¿Í»§Çø³ß´ç
+        // è·å–çª—å£å®¢æˆ·åŒºå°ºå¯¸
         RECT rcClient;
         GetClientRect(hWnd, &rcClient);
 
-        // ´´½¨ÄÚ´æDC
+        // åˆ›å»ºå†…å­˜DC
         HDC hMemDC = CreateCompatibleDC(hdc);
         HBITMAP hOldBmp = (HBITMAP)SelectObject(hMemDC, hBitmap);
 
-        // »ñÈ¡Î»Í¼³ß´ç
+        // è·å–ä½å›¾å°ºå¯¸
         BITMAP bm;
         GetObject(hBitmap, sizeof(BITMAP), &bm);
 
-        // ÉèÖÃÍ¸Ã÷¶È
+        // è®¾ç½®é€æ˜åº¦
         BLENDFUNCTION bf = { AC_SRC_OVER, 0, (BYTE)(HookManager::m_config.imageOpacity * 255), 0 };
 
-        // äÖÈ¾Í¼Æ¬£¨À­ÉìÌî³äÕû¸ö´°¿Ú£©
+        // æ¸²æŸ“å›¾ç‰‡ï¼ˆæ‹‰ä¼¸å¡«å……æ•´ä¸ªçª—å£ï¼‰
         OriginalAlphaBlend(
             hdc,
             rcClient.left, rcClient.top,
@@ -1995,14 +2032,14 @@ LRESULT WINAPI HookManager::WndSubProc(
             bf
         );
 
-        // ÇåÀí×ÊÔ´
+        // æ¸…ç†èµ„æº
         SelectObject(hMemDC, hOldBmp);
         DeleteDC(hMemDC);
         DeleteObject(hBitmap);
         return true;
         };
 
-    // ¸ù¾İ dwRefData ·ÖÖ§´¦Àí
+    // æ ¹æ® dwRefData åˆ†æ”¯å¤„ç†
     if (dwRefData == 0) {
         switch (message) {
         case WM_SIZE: {
@@ -2013,14 +2050,14 @@ LRESULT WINAPI HookManager::WndSubProc(
 
         case WM_ACTIVATE: {
             LRESULT ret = DefSubclassProc(hWnd, message, wparam, lparam);
-            UpdateWindowSize();  // Ê¹ÓÃLambdaÍ³Ò»¸üĞÂ³ß´ç
-            SetWindowBlur(hWnd); // ´°¿Ú¼¤»îÊ±¸üĞÂÄ£ºıĞ§¹û
+            UpdateWindowSize();  // ä½¿ç”¨Lambdaç»Ÿä¸€æ›´æ–°å°ºå¯¸
+            SetWindowBlur(hWnd); // çª—å£æ¿€æ´»æ—¶æ›´æ–°æ¨¡ç³Šæ•ˆæœ
             return ret;
         }
         case WM_SYSCOMMAND: {
             if (wparam == SC_MAXIMIZE || wparam == SC_RESTORE) {
                 LRESULT ret = DefSubclassProc(hWnd, message, wparam, lparam);
-                UpdateWindowSize();  // ×î´ó»¯/»Ö¸´Ê±¸üĞÂ³ß´ç
+                UpdateWindowSize();  // æœ€å¤§åŒ–/æ¢å¤æ—¶æ›´æ–°å°ºå¯¸
                 return ret;
             }
             break;
@@ -2044,9 +2081,9 @@ LRESULT WINAPI HookManager::WndSubProc(
         return ret;
     }
 
-    // È«¾ÖÏûÏ¢´¦Àí£¨²»ÒÀÀµdwRefData£©
+    // å…¨å±€æ¶ˆæ¯å¤„ç†ï¼ˆä¸ä¾èµ–dwRefDataï¼‰
     switch (message) {
-        // À¹½Ø±³¾°»æÖÆÏûÏ¢
+        // æ‹¦æˆªèƒŒæ™¯ç»˜åˆ¶æ¶ˆæ¯
     case WM_USER_REDRAW:
         RedrawWindow(hWnd, nullptr, nullptr,
             RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_ERASE | RDW_FRAME);
@@ -2056,33 +2093,37 @@ LRESULT WINAPI HookManager::WndSubProc(
             pair.second.needsUpdate = true;
         }
         break;
+    case WM_DWMCOMPOSITIONCHANGED:
+        SetWindowBlur(hWnd);
+        break;
+    case WM_NCPAINT:
+        SetWindowBlur(hWnd);
+        break;
     case WM_ERASEBKGND: {
+        SetWindowBlur(hWnd);
         if (pWindowEffect) {
             HDC hdc = (HDC)wparam;
             RECT rc;
             GetClientRect(hWnd, &rc);
 
-            // ÏÈ³¢ÊÔäÖÈ¾Í¼Æ¬
+            // å…ˆå°è¯•æ¸²æŸ“å›¾ç‰‡
             if (!RenderBackgroundImage(hdc)) {
-                // Í¼Æ¬äÖÈ¾Ê§°ÜÊ±»ØÍËµ½Í¸Ã÷±³¾°
+                // å›¾ç‰‡æ¸²æŸ“å¤±è´¥æ—¶å›é€€åˆ°é€æ˜èƒŒæ™¯
                 FillRect(hdc, &rc, transparentBrush);
             }
-            return 1;
         }
-        break;
+    		break;
     }
     case WM_PAINT: {
+    		SetWindowBlur(hWnd);
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hWnd, &ps);
-
-        // ÏÈµ÷ÓÃÄ¬ÈÏ»æÖÆ
+        // å…ˆè°ƒç”¨é»˜è®¤ç»˜åˆ¶
         LRESULT ret = DefSubclassProc(hWnd, message, wparam, lparam);
-
-        // ÔÙµş¼ÓÍ¼Æ¬
+        // å†å åŠ å›¾ç‰‡
         if (pWindowEffect) {
             RenderBackgroundImage(hdc);
         }
-
         EndPaint(hWnd, &ps);
         return ret;
     }
@@ -2106,7 +2147,7 @@ LRESULT WINAPI HookManager::WndSubProc(
         if (lparam && CompareStringOrdinal(
             reinterpret_cast<LPCWCH>(lparam), -1, L"ImmersiveColorSet", -1, TRUE) == CSTR_EQUAL)
         {
-            SetWindowBlur(hWnd);  // Ö÷Ìâ±ä»¯Ê±¸üĞÂÄ£ºıĞ§¹û
+            SetWindowBlur(hWnd);  // ä¸»é¢˜å˜åŒ–æ—¶æ›´æ–°æ¨¡ç³Šæ•ˆæœ
         }
         break;
 
@@ -2116,7 +2157,7 @@ LRESULT WINAPI HookManager::WndSubProc(
         if (iter != m_DUIList.end()) {
             iter->second.treeDraw = true;
         }
-        UpdateWindowSize();  // DPI±ä»¯Ê±¸üĞÂ³ß´ç
+        UpdateWindowSize();  // DPIå˜åŒ–æ—¶æ›´æ–°å°ºå¯¸
         return ret;
     }
     }
@@ -2140,7 +2181,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
         return false;
     }
 
-    // 1) ³¢ÊÔÄÃ NativeWindowHandle£¨HWND£©
+    // 1) å°è¯•æ‹¿ NativeWindowHandleï¼ˆHWNDï¼‰
     VARIANT varHwnd;
     VariantInit(&varHwnd);
     HRESULT hr = target->GetCurrentPropertyValue(UIA_NativeWindowHandlePropertyId, &varHwnd);
@@ -2161,7 +2202,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
             hwnd = (HWND)(UINT_PTR)varHwnd.uintVal;
         }
         else {
-            // ¿ÉÄÜÊÇ VT_EMPTY / VT_NULL
+            // å¯èƒ½æ˜¯ VT_EMPTY / VT_NULL
             hwnd = nullptr;
         }
     }
@@ -2177,7 +2218,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
         LOG_INFO("[ForceSetOpacityFromUIA]", tmp);
     }
 
-    // 2) Èç¹ûÄÃµ½ hwnd£¬¼ì²é½ø³Ì¹éÊô£¨±ØĞëÊÇµ±Ç°½ø³Ì»òÎÒÃÇ×¢ÈëµÄ½ø³Ì²Å¿ÉÄÜÖ±½Ó²Ù×÷ÄÚ´æ¶ÔÏó£©
+    // 2) å¦‚æœæ‹¿åˆ° hwndï¼Œæ£€æŸ¥è¿›ç¨‹å½’å±ï¼ˆå¿…é¡»æ˜¯å½“å‰è¿›ç¨‹æˆ–æˆ‘ä»¬æ³¨å…¥çš„è¿›ç¨‹æ‰å¯èƒ½ç›´æ¥æ“ä½œå†…å­˜å¯¹è±¡ï¼‰
     if (hwnd) {
         DWORD pid = 0;
         GetWindowThreadProcessId(hwnd, &pid);
@@ -2186,7 +2227,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
         LOG_DEBUG("[ForceSetOpacityFromUIA]", tmp);
 
         if (pid != GetCurrentProcessId()) {
-            // Èç¹û²»ÊÇÍ¬½ø³Ì£ºÈÔ¿É³¢ÊÔ AccessibleObjectFromWindow ÄÃ native OM
+            // å¦‚æœä¸æ˜¯åŒè¿›ç¨‹ï¼šä»å¯å°è¯• AccessibleObjectFromWindow æ‹¿ native OM
             OutputDebugStringW(L"[ForceSetOpacityFromUIA] HWND not in current process - will try AccessibleObjectFromWindow(OBJID_NATIVEOM)\n");
             LOG_DEBUG("[ForceSetOpacityFromUIA]", L"HWND not same process");
         }
@@ -2195,7 +2236,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
             LOG_DEBUG("[ForceSetOpacityFromUIA]", L"HWND same process");
         }
 
-        // 2a) ³¢ÊÔ AccessibleObjectFromWindow -> IDispatch£¨Native OLE Object Model£©
+        // 2a) å°è¯• AccessibleObjectFromWindow -> IDispatchï¼ˆNative OLE Object Modelï¼‰
         CComPtr<IDispatch> pDisp;
         HRESULT hrAO = ::AccessibleObjectFromWindow(hwnd, OBJID_NATIVEOM, IID_IDispatch, (void**)&pDisp);
         swprintf_s(tmp, L"[ForceSetOpacityFromUIA] AccessibleObjectFromWindow hr=0x%08X pDisp=%p\n", hrAO, (void*)pDisp.p);
@@ -2203,7 +2244,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
         LOG_DEBUG("[ForceSetOpacityFromUIA]", tmp);
 
         if (SUCCEEDED(hrAO) && pDisp) {
-            // ³É¹¦ÄÃµ½Ä³ÖÖ native object µÄ IDispatch ¡ª¡ª ³¢ÊÔ QueryInterface IUnknown -> IInspectable
+            // æˆåŠŸæ‹¿åˆ°æŸç§ native object çš„ IDispatch â€”â€” å°è¯• QueryInterface IUnknown -> IInspectable
             CComPtr<IUnknown> pUnk;
             hr = pDisp->QueryInterface(IID_IUnknown, (void**)&pUnk);
             swprintf_s(tmp, L"[ForceSetOpacityFromUIA] pDisp->QueryInterface(IUnknown) hr=0x%08X unk=%p\n", hr, (void*)pUnk.p);
@@ -2211,7 +2252,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
             LOG_DEBUG("[ForceSetOpacityFromUIA]", tmp);
 
             if (SUCCEEDED(hr) && pUnk) {
-                // ³¢ÊÔ QueryInterface ³ö IInspectable£¨ºÜ¿ÉÄÜÊ§°Ü£©
+                // å°è¯• QueryInterface å‡º IInspectableï¼ˆå¾ˆå¯èƒ½å¤±è´¥ï¼‰
                 IInspectable* pInspect = nullptr;
                 hr = pUnk->QueryInterface(__uuidof(IInspectable), (void**)&pInspect);
                 swprintf_s(tmp, L"[ForceSetOpacityFromUIA] pUnk->QI(IInspectable) hr=0x%08X pInspect=%p\n", hr, (void*)pInspect);
@@ -2219,7 +2260,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
                 LOG_DEBUG("[ForceSetOpacityFromUIA]", tmp);
 
                 if (SUCCEEDED(hr) && pInspect) {
-                    // ³É¹¦ÄÃµ½ IInspectable£º³¢ÊÔ QI IUIElement ²¢ put_Opacity
+                    // æˆåŠŸæ‹¿åˆ° IInspectableï¼šå°è¯• QI IUIElement å¹¶ put_Opacity
                     ABI::Windows::UI::Xaml::IUIElement* pUi = nullptr;
                     hr = pInspect->QueryInterface(__uuidof(ABI::Windows::UI::Xaml::IUIElement), (void**)&pUi);
                     swprintf_s(tmp, L"[ForceSetOpacityFromUIA] pInspect->QI(IUIElement) hr=0x%08X pUi=%p\n", hr, (void*)pUi);
@@ -2227,7 +2268,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
                     LOG_DEBUG("[ForceSetOpacityFromUIA]", tmp);
 
                     if (SUCCEEDED(hr) && pUi) {
-                        // ³¢ÊÔÉèÖÃ opacity
+                        // å°è¯•è®¾ç½® opacity
                         HRESULT hrSet = pUi->put_Opacity(newOpacity);
                         swprintf_s(tmp, L"[ForceSetOpacityFromUIA] pUi->put_Opacity hr=0x%08X\n", hrSet);
                         OutputDebugStringW(tmp);
@@ -2241,15 +2282,15 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
             }
         }
 
-        // 2b) Èç¹û AccessibleObjectFromWindow ²»ĞĞÇÒ hwnd ÊôÓÚµ±Ç°½ø³Ì£¬³¢ÊÔ´Ó hwnd »ñÈ¡ËŞÖ÷¶ÔÏó£¨Æô·¢Ê½£©
+        // 2b) å¦‚æœ AccessibleObjectFromWindow ä¸è¡Œä¸” hwnd å±äºå½“å‰è¿›ç¨‹ï¼Œå°è¯•ä» hwnd è·å–å®¿ä¸»å¯¹è±¡ï¼ˆå¯å‘å¼ï¼‰
         if (GetWindowThreadProcessId(hwnd, nullptr) == GetCurrentProcessId()) {
-            // ³¢ÊÔ¶ÁÈ¡ GWLP_USERDATA / DWLP_USER µÈ£¨ÓĞĞ©ËŞÖ÷°ÑÖ¸Õë·ÅÔÚÕâÀï£©
+            // å°è¯•è¯»å– GWLP_USERDATA / DWLP_USER ç­‰ï¼ˆæœ‰äº›å®¿ä¸»æŠŠæŒ‡é’ˆæ”¾åœ¨è¿™é‡Œï¼‰
             LONG_PTR userData = GetWindowLongPtr(hwnd, GWLP_USERDATA);
             swprintf_s(tmp, L"[ForceSetOpacityFromUIA] GetWindowLongPtr(GWLP_USERDATA) = 0x%p\n", (void*)userData);
             OutputDebugStringW(tmp);
             LOG_DEBUG("[ForceSetOpacityFromUIA]", tmp);
 
-            // ÁíÒ»ÖÖ³£¼û´æ´¢£ºGetProp(hwnd, L"XamlSource" or similar) ¡ª¡ª ³¢ÊÔÒ»Ğ©³£¼û Atom Ãû³Æ
+            // å¦ä¸€ç§å¸¸è§å­˜å‚¨ï¼šGetProp(hwnd, L"XamlSource" or similar) â€”â€” å°è¯•ä¸€äº›å¸¸è§ Atom åç§°
             const wchar_t* propNames[] = { L"XamlSource", L"DesktopWindowXamlSource", L"DesktopXamlSource", L"XamlIsland" };
             for (auto name : propNames) {
                 HANDLE hProp = GetProp(hwnd, name);
@@ -2257,10 +2298,10 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
                 OutputDebugStringW(tmp);
                 LOG_DEBUG("[ForceSetOpacityFromUIA]", tmp);
                 if (hProp) {
-                    // Èç¹ûÊÇ¸öÖ¸Õë£¬³¢ÊÔ°ÑËüµ±×÷ IUnknown Ö¸ÕëÊ¹ÓÃ£¨·Ç³£Î£ÏÕ£¬½÷É÷£©
+                    // å¦‚æœæ˜¯ä¸ªæŒ‡é’ˆï¼Œå°è¯•æŠŠå®ƒå½“ä½œ IUnknown æŒ‡é’ˆä½¿ç”¨ï¼ˆéå¸¸å±é™©ï¼Œè°¨æ…ï¼‰
                     IUnknown* pTry = reinterpret_cast<IUnknown*>(hProp);
                     if (pTry) {
-                        // ³¢ÊÔ QI IInspectable
+                        // å°è¯• QI IInspectable
                         IInspectable* pInspect = nullptr;
                         HRESULT hrTry = pTry->QueryInterface(__uuidof(IInspectable), (void**)&pInspect);
                         swprintf_s(tmp, L"[ForceSetOpacityFromUIA] try GetProp->QI(IInspectable) hr=0x%08X pInspect=%p\n", hrTry, (void*)pInspect);
@@ -2286,8 +2327,8 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
         }
     } // end if hwnd
 
-    // 3) Èç¹ûÃ»ÓĞ HWND »òÒÔÉÏ·½·¨Ê§°Ü£¬³¢ÊÔÍ¨¹ı UIA µÄ RuntimeId / AutomationId »ñÈ¡¸ü¶àĞÅÏ¢²¢ÔÚÈÕÖ¾ÖĞÊä³ö£¬¹©ºóĞøÊÖ¶¯Æ¥Åä
-    // »ñÈ¡ runtime class name
+    // 3) å¦‚æœæ²¡æœ‰ HWND æˆ–ä»¥ä¸Šæ–¹æ³•å¤±è´¥ï¼Œå°è¯•é€šè¿‡ UIA çš„ RuntimeId / AutomationId è·å–æ›´å¤šä¿¡æ¯å¹¶åœ¨æ—¥å¿—ä¸­è¾“å‡ºï¼Œä¾›åç»­æ‰‹åŠ¨åŒ¹é…
+    // è·å– runtime class name
     BSTR bstrName = nullptr;
     hr = target->get_CurrentName(&bstrName);
     if (SUCCEEDED(hr) && bstrName) {
@@ -2297,7 +2338,7 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
         SysFreeString(bstrName);
     }
 
-    // Êä³ö ControlType / AutomationId / RuntimeId µÈ×÷ÎªÏßË÷
+    // è¾“å‡º ControlType / AutomationId / RuntimeId ç­‰ä½œä¸ºçº¿ç´¢
     VARIANT varAutoId; VariantInit(&varAutoId);
     hr = target->GetCurrentPropertyValue(UIA_AutomationIdPropertyId, &varAutoId);
     if (SUCCEEDED(hr) && varAutoId.vt == VT_BSTR && varAutoId.bstrVal) {
@@ -2307,10 +2348,10 @@ bool ForceSetOpacityFromUIA(CComPtr<IUIAutomationElement> target, double newOpac
     }
     VariantClear(&varAutoId);
 
-    // ×îºó³¢ÊÔ£ºÃ¶¾ÙÓëÄ¿±êÔªËØÏàÍ¬µÄ¶¥²ã DesktopChildSiteBridge ´°¿Ú£¬²¢¶ÔÆä×Ó´°¿Ú×ö³¢ÊÔĞÔ²Ù×÷£¨Ö»ÊÇ¼ÇÂ¼ĞÅÏ¢£©
+    // æœ€åå°è¯•ï¼šæšä¸¾ä¸ç›®æ ‡å…ƒç´ ç›¸åŒçš„é¡¶å±‚ DesktopChildSiteBridge çª—å£ï¼Œå¹¶å¯¹å…¶å­çª—å£åšå°è¯•æ€§æ“ä½œï¼ˆåªæ˜¯è®°å½•ä¿¡æ¯ï¼‰
     HWND top = nullptr;
     if (hwnd) {
-        // ÕÒµ½×î¶¥²ãÍ¬Àà´°¿Ú
+        // æ‰¾åˆ°æœ€é¡¶å±‚åŒç±»çª—å£
         top = GetAncestor(hwnd, GA_ROOT);
         swprintf_s(tmp, L"[ForceSetOpacityFromUIA] topAncestor = 0x%p\n", top);
         OutputDebugStringW(tmp);
@@ -2338,14 +2379,14 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
     if (hWnd) {
         className = GetWindowClassName(hWnd);
     }
-    // Èç¹û¸¸´°¿ÚÊÇ Microsoft.UI.Content.DesktopChildSiteBridge£¬Ö´ĞĞ TAPSite::Install
+    // å¦‚æœçˆ¶çª—å£æ˜¯ Microsoft.UI.Content.DesktopChildSiteBridgeï¼Œæ‰§è¡Œ TAPSite::Install
     if (className == L"Microsoft.UI.Content.DesktopChildSiteBridge" || className == L"Microsoft.UI.Content.DesktopWindowHost") {
-        // °Ñ hWnd ×÷ÎªÏß³Ì²ÎÊı´«Èë£¬InstallUdk »áµÈ´ı´°¿ÚÄÚ XAML Ö÷»ú¾ÍĞ÷ÔÙ attach
+        // æŠŠ hWnd ä½œä¸ºçº¿ç¨‹å‚æ•°ä¼ å…¥ï¼ŒInstallUdk ä¼šç­‰å¾…çª—å£å†… XAML ä¸»æœºå°±ç»ªå† attach
         if (!is)
         {
             wil::unique_handle handle(CreateThread(nullptr, 0, TAPSite::InstallUdk, nullptr, 0, nullptr));
             if (!handle) {
-                LOG_ERROR("[HookManager.cpp][HookedCreateWindowExW]", "´´½¨TAPSiteÏß³ÌÊ§°Ü\n");
+                LOG_ERROR("[HookManager.cpp][HookedCreateWindowExW]", "åˆ›å»ºTAPSiteçº¿ç¨‹å¤±è´¥\n");
             }
             else {
                 LOG_INFO("[HookManager.cpp][HookedCreateWindowExW]", "Detected DesktopChildSiteBridge, spawn install thread for hwnd ", (uintptr_t)hWnd);
@@ -2354,14 +2395,14 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
         }
         wil::unique_handle handle(CreateThread(nullptr, 0, TAPSite::InstallUdk, (LPVOID)hWnd, 0, nullptr));
         if (!handle) {
-            LOG_ERROR("[HookManager.cpp][HookedCreateWindowExW]", "´´½¨TAPSiteÏß³ÌÊ§°Ü\n");
+            LOG_ERROR("[HookManager.cpp][HookedCreateWindowExW]", "åˆ›å»ºTAPSiteçº¿ç¨‹å¤±è´¥\n");
         }
         else {
             LOG_INFO("[HookManager.cpp][HookedCreateWindowExW]", "Detected DesktopChildSiteBridge, spawn install thread for hwnd ", (uintptr_t)hWnd);
         }
     }
 
-    // ĞŞ¸´BlurÏÂEditµÄAlpha
+    // ä¿®å¤Blurä¸‹Editçš„Alpha
     if (IsDUIThread()) {
         if (ConvertTolower(className) == L"edit")
         {
@@ -2372,7 +2413,7 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
     // explorer window
     if (className == L"DirectUIHWND" && GetWindowClassName(hWndParent) == L"SHELLDLL_DefView")
     {
-        // ¼ÌĞø²éÕÒ¸¸¼¶
+        // ç»§ç»­æŸ¥æ‰¾çˆ¶çº§
         HWND parent = GetParent(hWndParent);
         if (GetWindowClassName(parent) == L"ShellTabWindowClass")
         {
@@ -2382,7 +2423,7 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                 windowEffects.emplace(parent, WindowEffect(parent));
             }
 
-            // ÉèÖÃBlur
+            // è®¾ç½®Blur
             SetWindowBlur(parent);
 
             // 22H2
@@ -2400,7 +2441,7 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                 SetWindowSubclass(parent, HookManager::WndSubProc, 0, (DWORD_PTR)3);
             }
 
-            // ¼ÇÂ¼µ½ÁĞ±íÖĞ Add to list
+            // è®°å½•åˆ°åˆ—è¡¨ä¸­ Add to list
             DWORD tid = GetCurrentThreadId();
 
             DUIData data;
@@ -2431,7 +2472,7 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
             }
             /*
             std::thread([]() {
-                // ÔÚĞÂÏß³ÌÖĞ³õÊ¼»¯ COM
+                // åœ¨æ–°çº¿ç¨‹ä¸­åˆå§‹åŒ– COM
                 winrt::init_apartment(winrt::apartment_type::multi_threaded);
                 /*HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
                 if (FAILED(hr)) {
@@ -2447,25 +2488,25 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                     LOG_INFO("[XamlTreeScanner]", L"Initializing scanner...");
                     XamlTreeScanner scanner;
                     if (!scanner.GetAutomation()) {
-                        LOG_ERROR("[XamlTreeScanner]", L"UIAutomation ³õÊ¼»¯Ê§°Ü");
+                        LOG_ERROR("[XamlTreeScanner]", L"UIAutomation åˆå§‹åŒ–å¤±è´¥");
                         return;
                     }
 
-                    // É¨ÃèËùÓĞÔªËØ
+                    // æ‰«ææ‰€æœ‰å…ƒç´ 
                     scanner.ScanAllElements();
                     auto elements = scanner.GetElements();
-                    LOG_INFO("[XamlTreeScanner]", L"É¨Ãèµ½ÔªËØ×ÜÊı: " + std::to_wstring(elements.size()));
+                    LOG_INFO("[XamlTreeScanner]", L"æ‰«æåˆ°å…ƒç´ æ€»æ•°: " + std::to_wstring(elements.size()));
                     if (elements.empty()) {
-                        LOG_ERROR("[XamlTreeScanner]", L"Ã»ÓĞÉ¨Ãèµ½ÈÎºÎÔªËØ£¬ÍË³ö");
+                        LOG_ERROR("[XamlTreeScanner]", L"æ²¡æœ‰æ‰«æåˆ°ä»»ä½•å…ƒç´ ï¼Œé€€å‡º");
                         return;
                     }
 
-                    // ====================== ²éÕÒ¡°ÅÅĞò¡±ÔªËØ¼°Æä¸¸Á´ ======================
-                    LOG_INFO("[XamlTreeScanner]", L"Finding 'ÅÅĞò' element and its parents...");
+                    // ====================== æŸ¥æ‰¾â€œæ’åºâ€å…ƒç´ åŠå…¶çˆ¶é“¾ ======================
+                    LOG_INFO("[XamlTreeScanner]", L"Finding 'æ’åº' element and its parents...");
                     CComPtr<IUIAutomationTreeWalker> walker;
                     scanner.GetAutomation()->get_ControlViewWalker(&walker);
                     if (!walker) {
-                        LOG_ERROR("[XamlTreeScanner]", L"ControlViewWalker »ñÈ¡Ê§°Ü");
+                        LOG_ERROR("[XamlTreeScanner]", L"ControlViewWalker è·å–å¤±è´¥");
                         return;
                     }
 
@@ -2474,17 +2515,17 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
 
                     std::vector<CComPtr<IUIAutomationElement>> targets;
                     for (auto& e : elements) {
-                        if (scanner.GetElementName(e) == L"ÅÅĞò") {
+                        if (scanner.GetElementName(e) == L"æ’åº") {
                             targets.push_back(e);
                         }
                     }
 
                     if (targets.empty()) {
-                        LOG_WARN("[XamlTreeScanner]", L"No 'ÅÅĞò' elements found");
+                        LOG_WARN("[XamlTreeScanner]", L"No 'æ’åº' elements found");
                     }
                     else {
                         for (auto& te : targets) {
-                            // ÊÕ¼¯¸¸Á´
+                            // æ”¶é›†çˆ¶é“¾
                             std::vector<CComPtr<IUIAutomationElement>> chain;
                             CComPtr<IUIAutomationElement> cur = te;
                             while (cur) {
@@ -2495,9 +2536,9 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                             }
                             std::reverse(chain.begin(), chain.end());
 
-                            // Êä³ö
+                            // è¾“å‡º
                             std::wstring addr = L"Element@" + std::to_wstring(reinterpret_cast<uintptr_t>(te.p));
-                            LOG_INFO("[XamlTreeScanner]", L"----- Parent Chain for 'ÅÅĞò' (" + addr + L") -----");
+                            LOG_INFO("[XamlTreeScanner]", L"----- Parent Chain for 'æ’åº' (" + addr + L") -----");
                             int lvl = 0;
                             for (auto& node : chain) {
                                 std::wstring name = scanner.GetElementName(node);
@@ -2513,10 +2554,10 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                                 CComBSTR aid; node->get_CurrentAutomationId(&aid);
                                 std::wstring id = (aid && aid.Length()) ? std::wstring(aid, SysStringLen(aid)) : L"";
 
-                                // ===== ĞÂÔö£ºÊ¶±ğÄ¿±êÔªËØ =====
+                                // ===== æ–°å¢ï¼šè¯†åˆ«ç›®æ ‡å…ƒç´  =====
                                 if (ct == 50040 && id == L"FileExplorerCommandBar") {
-                                    targetCommandBar = node; // ±£´æÄ¿±êÔªËØ
-                                    LOG_INFO("[XamlTreeScanner]", L"ÕÒµ½Ä¿±êÔªËØ: FileExplorerCommandBar");
+                                    targetCommandBar = node; // ä¿å­˜ç›®æ ‡å…ƒç´ 
+                                    LOG_INFO("[XamlTreeScanner]", L"æ‰¾åˆ°ç›®æ ‡å…ƒç´ : FileExplorerCommandBar");
                                 }
 
                                 std::wstring indent(lvl * 2, L' ');
@@ -2530,11 +2571,11 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                     }
 
                     if (targetCommandBar) {
-                        LOG_INFO("[XamlTreeScanner]", L"³¢ÊÔĞŞ¸ÄFileExplorerCommandBar±³¾°Í¸Ã÷¶È¡­");
+                        LOG_INFO("[XamlTreeScanner]", L"å°è¯•ä¿®æ”¹FileExplorerCommandBarèƒŒæ™¯é€æ˜åº¦â€¦");
                         ForceSetOpacityFromUIA(targetCommandBar, 0.0);
                     }
                     else {
-                        LOG_WARN("[XamlTreeScanner]", L"Î´ÕÒµ½FileExplorerCommandBarÔªËØ");
+                        LOG_WARN("[XamlTreeScanner]", L"æœªæ‰¾åˆ°FileExplorerCommandBarå…ƒç´ ");
                     }
                 }
                 catch (const std::exception& e) {
@@ -2544,7 +2585,7 @@ HWND WINAPI HookManager::HookedCreateWindowExW(
                 catch (winrt::hresult_error const& e) {
                     std::wstring msg = e.message().c_str();
                     std::wstringstream ss;
-                    ss << L"WinRT Òì³£: " << msg << L" (HRESULT: 0x" << std::hex << static_cast<uint32_t>(e.code()) << L")";
+                    ss << L"WinRT å¼‚å¸¸: " << msg << L" (HRESULT: 0x" << std::hex << static_cast<uint32_t>(e.code()) << L")";
                     LOG_ERROR("[XamlTreeScanner]", ss.str().c_str());
                 }
                 catch (...) {
@@ -2560,7 +2601,7 @@ HWND HookManager::FindExplorerMainWindow(HWND hChild) {
     HWND parent = hChild;
     HWND lastParent = hChild;
 
-    // ÏòÉÏ±éÀú´°¿Ú²ã¼¶
+    // å‘ä¸Šéå†çª—å£å±‚çº§
     while (parent) {
         lastParent = parent;
         parent = GetParent(parent);
@@ -2598,7 +2639,7 @@ bool HookManager::AlphaBuffer(HDC hdc, LPRECT pRc, std::function<void(HDC)> fun)
     HPAINTBUFFER pbuffer = BeginBufferedPaint(hdc, pRc, BPBF_TOPDOWNDIB, &bpParam, &hDC);
     if (pbuffer && hDC && fun)
     {
-        //ÉèÖÃÔ­DCĞÅÏ¢
+        //è®¾ç½®åŸDCä¿¡æ¯
         SelectObject(hDC, GetCurrentObject(hdc, OBJ_FONT));
         SetBkMode(hDC, GetBkMode(hdc));
         SetBkColor(hDC, GetBkColor(hdc));
@@ -2737,25 +2778,25 @@ bool HookManager::CompareColor(COLORREF color1, COLORREF color2)
 int WINAPI HookManager::HookedFillRect(HDC hDC, const RECT* lprc, HBRUSH hbr) {
     int ret = S_OK;
     DWORD curThread = GetCurrentThreadId();
-    bool backgroundRendered = false; // ĞÂÔö£º±ê¼ÇÊÇ·ñÒÑäÖÈ¾±³¾°
+    bool backgroundRendered = false; // æ–°å¢ï¼šæ ‡è®°æ˜¯å¦å·²æ¸²æŸ“èƒŒæ™¯
 
-    // ¼ì²éÊÇ·ñĞèÒªäÖÈ¾Í¼Æ¬±³¾°
+    // æ£€æŸ¥æ˜¯å¦éœ€è¦æ¸²æŸ“å›¾ç‰‡èƒŒæ™¯
     if (!HookManager::m_config.imagePath.empty()) {
         auto iter = m_DUIList.find(curThread);
         if (iter != m_DUIList.end() && iter->second.hDC == hDC) {
-            // µ¥Àı¼ÓÔØÍ¼Æ¬£¨±ÜÃâÖØ¸´¼ÓÔØ£©
+            // å•ä¾‹åŠ è½½å›¾ç‰‡ï¼ˆé¿å…é‡å¤åŠ è½½ï¼‰
             static std::unordered_map<std::wstring, BitmapCache> s_imageCache;
             auto& cache = s_imageCache[HookManager::m_config.imagePath];
 
-            // Ê×´Î¼ÓÔØ»òÍ¼Æ¬Â·¾¶±ä»¯Ê±ÖØĞÂ¼ÓÔØ
+            // é¦–æ¬¡åŠ è½½æˆ–å›¾ç‰‡è·¯å¾„å˜åŒ–æ—¶é‡æ–°åŠ è½½
             if (!cache.hBitmap || cache.path != HookManager::m_config.imagePath) {
-                // ÊÍ·Å¾É×ÊÔ´
+                // é‡Šæ”¾æ—§èµ„æº
                 if (cache.hBitmap) {
                     DeleteObject(cache.hBitmap);
                     cache.hBitmap = nullptr;
                 }
 
-                // Ê¹ÓÃGDI+¼ÓÔØÈÎÒâ¸ñÊ½Í¼Æ¬
+                // ä½¿ç”¨GDI+åŠ è½½ä»»æ„æ ¼å¼å›¾ç‰‡
                 Gdiplus::Bitmap* pBitmap = Gdiplus::Bitmap::FromFile(
                     HookManager::m_config.imagePath.c_str()
                 );
@@ -2769,35 +2810,35 @@ int WINAPI HookManager::HookedFillRect(HDC hDC, const RECT* lprc, HBRUSH hbr) {
                 delete pBitmap;
             }
 
-            // ³É¹¦¼ÓÔØÍ¼Æ¬ºóäÖÈ¾
+            // æˆåŠŸåŠ è½½å›¾ç‰‡åæ¸²æŸ“
             if (cache.hBitmap) {
-                // Ö»µ÷ÓÃÒ»´ÎÔ­Ê¼Ìî³ä×÷Îª±³¾°
+                // åªè°ƒç”¨ä¸€æ¬¡åŸå§‹å¡«å……ä½œä¸ºèƒŒæ™¯
                 ret = OriginalFillRect(hDC, lprc, hbr);
 
                 HDC hMemDC = CreateCompatibleDC(hDC);
                 HBITMAP hOldBmp = (HBITMAP)SelectObject(hMemDC, cache.hBitmap);
 
-                // ¼ÆËã»æÖÆÎ»ÖÃºÍ³ß´ç£¨¾ÓÖĞ£©
+                // è®¡ç®—ç»˜åˆ¶ä½ç½®å’Œå°ºå¯¸ï¼ˆå±…ä¸­ï¼‰
                 int drawX = (iter->second.width - cache.width) / 2;
                 int drawY = (iter->second.height - cache.height) / 2;
 
-                // ÉèÖÃÍ¸Ã÷¶È»ìºÏ
+                // è®¾ç½®é€æ˜åº¦æ··åˆ
                 BLENDFUNCTION bf = {
                     AC_SRC_OVER,
                     0,
                     static_cast<BYTE>(HookManager::m_config.imageOpacity * 255),
                     AC_SRC_ALPHA
                 };
-                // Ìæ»»Ô­ÓĞµÄ»æÖÆ´úÂë
+                // æ›¿æ¢åŸæœ‰çš„ç»˜åˆ¶ä»£ç 
                 RECT rcClient;
-                GetClientRect(iter->second.hWnd, &rcClient);  // »ñÈ¡Êµ¼Ê¿Í»§Çø´óĞ¡
+                GetClientRect(iter->second.hWnd, &rcClient);  // è·å–å®é™…å®¢æˆ·åŒºå¤§å°
 
-                // äÖÈ¾Í¼Æ¬
+                // æ¸²æŸ“å›¾ç‰‡
                 OriginalAlphaBlend(
                     hDC,
-                    rcClient.left, rcClient.top,   // ´Ó¿Í»§Çø×óÉÏ½Ç¿ªÊ¼
-                    rcClient.right - rcClient.left, // Ê¹ÓÃ¿Í»§Çø¿í¶È
-                    rcClient.bottom - rcClient.top, // Ê¹ÓÃ¿Í»§Çø¸ß¶È
+                    rcClient.left, rcClient.top,   // ä»å®¢æˆ·åŒºå·¦ä¸Šè§’å¼€å§‹
+                    rcClient.right - rcClient.left, // ä½¿ç”¨å®¢æˆ·åŒºå®½åº¦
+                    rcClient.bottom - rcClient.top, // ä½¿ç”¨å®¢æˆ·åŒºé«˜åº¦
                     hMemDC,
                     0, 0,
                     cache.width,
@@ -2805,13 +2846,13 @@ int WINAPI HookManager::HookedFillRect(HDC hDC, const RECT* lprc, HBRUSH hbr) {
                     bf
                 );
 
-                // ÇåÀí×ÊÔ´
+                // æ¸…ç†èµ„æº
                 SelectObject(hMemDC, hOldBmp);
                 DeleteDC(hMemDC);
 
-                backgroundRendered = true; // ±ê¼ÇÒÑäÖÈ¾
+                backgroundRendered = true; // æ ‡è®°å·²æ¸²æŸ“
 
-                // Ö±½ÓÔÚÕâÀï´¦ÀíºóĞøÂß¼­
+                // ç›´æ¥åœ¨è¿™é‡Œå¤„ç†åç»­é€»è¾‘
                 if (iter->second.refresh) {
                     SendMessageW(iter->second.hWnd, WM_THEMECHANGED, 0, 0);
 
@@ -2829,12 +2870,12 @@ int WINAPI HookManager::HookedFillRect(HDC hDC, const RECT* lprc, HBRUSH hbr) {
                     TreeView_SetBkColor(iter->second.TreeWnd, color);
                 }
 
-                return ret; // ÌáÇ°·µ»Ø£¬±ÜÃâºóĞø¸²¸Ç
+                return ret; // æå‰è¿”å›ï¼Œé¿å…åç»­è¦†ç›–
             }
         }
     }
 
-    // Î´äÖÈ¾±³¾°Ê±²ÅÖ´ĞĞÒÔÏÂÂß¼­
+    // æœªæ¸²æŸ“èƒŒæ™¯æ—¶æ‰æ‰§è¡Œä»¥ä¸‹é€»è¾‘
     if (!backgroundRendered) {
         auto iter = m_DUIList.find(curThread);
         if (iter != m_DUIList.end()) {
