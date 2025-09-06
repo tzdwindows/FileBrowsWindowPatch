@@ -736,6 +736,7 @@ LONG WINAPI CrashMonitor::VectoredHandler(EXCEPTION_POINTERS* ep) {
         exceptionCode == 0xe06d7363 ||
         exceptionCode == 0x4001000a ||
         exceptionCode == 0x80040155 ||
+        exceptionCode == 0x7ffb02e600ac ||
         exceptionCode == 0x406D1388) { // SetThreadName exception
         return EXCEPTION_CONTINUE_SEARCH;
     }
