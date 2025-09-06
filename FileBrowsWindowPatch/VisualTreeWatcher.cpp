@@ -260,6 +260,49 @@ HRESULT VisualTreeWatcher::OnVisualTreeChange(
                             }
 
                             else {
+                                propName = L"Microsoft.UI.Xaml.Controls.Grid.BorderBrush";
+                                wchar_t buf2[1024];
+                                unsigned int propIndex = 0;
+                                HRESULT hrIndex = pVisualService3->GetPropertyIndex(key, propName, &propIndex);
+                                if (SUCCEEDED(hrIndex)) {
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] GetPropertyIndex(%s) hr=0x%08X index=%u handle=%llu\n",
+                                        propName, hrIndex, propIndex, key);
+                                    OutputDebugStringW(buf2);
+
+                                    // 创建透明 Brush
+                                    const wchar_t* brushType =
+                                        (info.type.rfind(L"Microsoft.UI.Xaml", 0) == 0) ?
+                                        L"Microsoft.UI.Xaml.Media.SolidColorBrush" :
+                                        L"Windows.UI.Xaml.Media.SolidColorBrush";
+                                    BSTR brushTypeBstr = SysAllocString(brushType);
+                                    BSTR transparentColorBstr = SysAllocString(L"Transparent");
+                                    InstanceHandle brushHandle = 0;
+                                    HRESULT hrCreate = pVisualService3->CreateInstance(brushTypeBstr, transparentColorBstr, &brushHandle);
+                                    SysFreeString(brushTypeBstr);
+
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] CreateInstance(%s, Transparent) hr=0x%08X handle=%llu\n",
+                                        brushType, hrCreate, static_cast<unsigned long long>(brushHandle));
+                                    OutputDebugStringW(buf2);
+
+                                    if (SUCCEEDED(hrCreate) && brushHandle) {
+                                        // 修改元素本地值
+                                        HRESULT hrSetLocal = pVisualService3->SetProperty(key, brushHandle, propIndex);
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] SetProperty(LOCAL %s) hr=0x%08X handle=%llu\n",
+                                            propName, hrSetLocal, key);
+                                        OutputDebugStringW(buf2);
+                                    }
+                                    else {
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] CreateInstance(%s) failed hr=0x%08X\n",
+                                            propName, hrIndex);
+                                        OutputDebugStringW(buf2);
+                                    }
+                                }
+                                else {
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] GetPropertyIndex(%s) failed hr=0x%08X\n",
+                                        propName, hrIndex);
+                                    OutputDebugStringW(buf2);
+                                }
+
                                 propName = L"Microsoft.UI.Xaml.Controls.Grid.Background";
                             }
 

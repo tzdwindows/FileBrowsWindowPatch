@@ -74,6 +74,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID) {
             }*/
             CrashMonitor monitor;
             monitor.Run();
+            // int* p = nullptr; *p = 0;
             //ConfigManager::LoadConfig();
             HookManager::InstallHooks();
         }

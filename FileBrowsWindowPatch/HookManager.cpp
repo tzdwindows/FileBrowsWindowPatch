@@ -1713,11 +1713,11 @@ HRESULT __stdcall HookManager::HookedDrawThemeBackground(
     LOG_DEBUG("[HookManager.cpp][HookedDrawThemeBackground]", "Get the component when drawing the theme:", className);
    
     // 用 OutputDebugStringA 再输出一次
-    /*{
+    {
         std::string msg = "[HookManager.cpp][HookedDrawThemeBackground] className = "
             + std::string(className.begin(), className.end()) + "\n";
         OutputDebugStringA(msg.c_str());
-    }*/
+    }
     
     if (className == L"Rebar" && (iPartId == RP_BACKGROUND || iPartId == RP_BAND) && iStateId == 0)
     {
@@ -1775,6 +1775,10 @@ HRESULT __stdcall HookManager::HookedDrawThemeBackgroundEx(
     else if (className == L"PreviewPane") {
         //if (iPartId == 1 && iStateId == 1) // 3 3
             return S_OK;
+    }
+    else if (className == L"ShellStatusBarSeparator") {
+        //if (iPartId == 1 && iStateId == 1) // 3 3
+        return S_OK;
     }
     return OriginalDrawThemeBackgroundEx(hTheme, hdc, iPartId, iStateId, pRect, pOptions);
 }

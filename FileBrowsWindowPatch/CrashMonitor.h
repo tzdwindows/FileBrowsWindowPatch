@@ -9,9 +9,12 @@ public:
     void Run();
     void Stop();
 
-private:
     static LONG WINAPI UnhandledExceptionHandler(PEXCEPTION_POINTERS exception);
+    static void SignalHandler(int sig);
     static BOOL WINAPI ConsoleCtrlHandler(DWORD ctrlType);
+    static LONG WINAPI VectoredHandler(EXCEPTION_POINTERS* ep);
 
-    static std::atomic<bool> isRunning;
+private:
+    void ShowCrashDialogFromUIThread();
+    std::atomic<bool> isRunning_;
 };
