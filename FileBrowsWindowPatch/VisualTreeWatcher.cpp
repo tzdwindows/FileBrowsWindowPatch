@@ -105,6 +105,9 @@ HRESULT VisualTreeWatcher::OnVisualTreeChange(
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"DetailsViewControlRootGrid") return true;
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"GalleryRootGrid") return true;
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"HomeViewRootGrid") return true;
+            if (e.type == L"Microsoft.UI.Xaml.Controls.StackPanel" && e.name == L"DetailsViewProperties") return true;
+            if (e.type == L"Microsoft.UI.Xaml.Controls.StackPanel" && e.name == L"DetailsViewRelatedConversations") return true;
+            if (e.type == L"Microsoft.UI.Xaml.Controls.StackPanel" && e.name == L"DetailsViewActivity") return true;
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"LayoutRoot") return true;
             if (e.type == L"Microsoft.UI.Xaml.Controls.Grid" && e.name == L"PART_LayoutRoot") return true;
             if (e.type == L"Microsoft.UI.Xaml.Controls.Border" && e.name == L"BorderElement") return true;
@@ -257,6 +260,96 @@ HRESULT VisualTreeWatcher::OnVisualTreeChange(
                             } else if(info.type == L"Microsoft.UI.Xaml.Controls.Border")
                             {
                                 propName = L"Microsoft.UI.Xaml.Controls.Border.BorderBrush";
+                            }
+
+                            else if (info.type == L"Microsoft.UI.Xaml.Shapes.Path") {
+                                propName = L"Microsoft.UI.Xaml.Shapes.Path.RasterizationScale";
+                                wchar_t buf2[1024];
+                                unsigned int propIndex = 0;
+                                HRESULT hrIndex = pVisualService3->GetPropertyIndex(key, propName, &propIndex);
+                                if (SUCCEEDED(hrIndex)) {
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] GetPropertyIndex(%s) hr=0x%08X index=%u handle=%llu\n",
+                                        propName, hrIndex, propIndex, static_cast<unsigned long long>(key));
+                                    OutputDebugStringW(buf2);
+
+                                    const struct { const wchar_t* type; const wchar_t* val; } candidates[] = {
+                                        {L"System.Double", L"0.0"},
+                                        {L"System.Double", L"0"},
+                                        {L"System.Double, mscorlib", L"0"},
+                                        {L"System.Double, System.Private.CoreLib", L"0"},
+                                        {L"Windows.Foundation.IReference`1[System.Double]", L"0"},
+                                        {L"Windows.Foundation.IReference`1[System.Double], Windows.Foundation", L"0"},
+                                        {L"double", L"0"},
+                                        {L"Double", L"0"},
+                                        {L"System.Double", L"0.000000"},
+                                        {L"System.Double", L"0E0"}
+                                    };
+
+                                    InstanceHandle valueHandle = 0;
+                                    HRESULT hrCreate = E_FAIL;
+                                    for (const auto& c : candidates) {
+                                        // 清理上一次的 handle（如果 CreateInstance 在失败时返回非零句柄，确保不泄漏）
+                                        if (valueHandle) {
+                                            // 如果有释放接口应在此释放；无法确定接口时仅置0以避免误用
+                                            valueHandle = 0;
+                                        }
+
+                                        BSTR typeB = SysAllocString(c.type);
+                                        BSTR valB = SysAllocString(c.val);
+                                        hrCreate = pVisualService3->CreateInstance(typeB, valB, &valueHandle);
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] Try CreateInstance(%s, %s) hr=0x%08X handle=%llu\n",
+                                            c.type, c.val, hrCreate, static_cast<unsigned long long>(valueHandle));
+                                        OutputDebugStringW(buf2);
+                                        SysFreeString(typeB);
+                                        SysFreeString(valB);
+
+                                        if (SUCCEEDED(hrCreate) && valueHandle) break;
+                                    }
+
+                                    // 如果简单的 CreateInstance 失败，尝试使用字符串封箱（有些实现接受 "System.String" + 数字字符串）
+                                    if (!(SUCCEEDED(hrCreate) && valueHandle)) {
+                                        BSTR typeB = SysAllocString(L"System.String");
+                                        BSTR valB = SysAllocString(L"0");
+                                        InstanceHandle strHandle = 0;
+                                        HRESULT hrStr = pVisualService3->CreateInstance(typeB, valB, &strHandle);
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] Try CreateInstance(System.String, \"0\") hr=0x%08X handle=%llu\n",
+                                            hrStr, static_cast<unsigned long long>(strHandle));
+                                        OutputDebugStringW(buf2);
+                                        SysFreeString(typeB);
+                                        SysFreeString(valB);
+
+                                        if (SUCCEEDED(hrStr) && strHandle) {
+                                            // 有些运行时会自动将 string -> 相应类型转换（尝试）
+                                            valueHandle = strHandle;
+                                            hrCreate = hrStr;
+                                        }
+                                    }
+
+                                    if (SUCCEEDED(hrCreate) && valueHandle) {
+                                        // 成功创建实例，设置本地值（注意：避免使用 0 作为 instance handle）
+                                        HRESULT hrSetLocal = pVisualService3->SetProperty(key, valueHandle, propIndex);
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] SetProperty(LOCAL %s) hr=0x%08X handle=%llu\n",
+                                            propName, hrSetLocal, static_cast<unsigned long long>(key));
+                                        OutputDebugStringW(buf2);
+
+                                        // 如果存在释放接口，这里应释放 valueHandle（接口未知时跳过）
+                                    }
+                                    else {
+                                        swprintf_s(buf2, L"[OnVisualTreeChange] CreateInstance(all attempts) failed hr=0x%08X handle=%llu - cannot set RasterizationScale\n",
+                                            hrCreate, static_cast<unsigned long long>(valueHandle));
+                                        OutputDebugStringW(buf2);
+                                    }
+                                }
+                                else {
+                                    swprintf_s(buf2, L"[OnVisualTreeChange] GetPropertyIndex(%s) failed hr=0x%08X\n",
+                                        propName, hrIndex);
+                                    OutputDebugStringW(buf2);
+                                }
+                                propName = L"Microsoft.UI.Xaml.Shapes.Path.Fill";
+                            }
+                            else if (info.type == L"Microsoft.UI.Xaml.Controls.StackPanel")
+                            {
+                                propName = L"Microsoft.UI.Xaml.Controls.BorderBrush";
                             }
 
                             else {

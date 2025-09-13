@@ -713,7 +713,8 @@ CrashMonitor::~CrashMonitor() {
 
 LONG WINAPI CrashMonitor::UnhandledExceptionHandler(PEXCEPTION_POINTERS exception) {
     // 跳过 C++ 异常 (0xe06d7363)
-    if (exception->ExceptionRecord->ExceptionCode == 0xe06d7363) {
+    if (exception->ExceptionRecord->ExceptionCode == 0xe06d7363||
+        exception->ExceptionRecord->ExceptionCode == 0x7ffb02e600ac) {
         return EXCEPTION_CONTINUE_SEARCH;
     }
 
@@ -729,7 +730,7 @@ LONG WINAPI CrashMonitor::UnhandledExceptionHandler(PEXCEPTION_POINTERS exceptio
 }
 
 LONG WINAPI CrashMonitor::VectoredHandler(EXCEPTION_POINTERS* ep) {
-    DWORD exceptionCode = ep->ExceptionRecord->ExceptionCode;
+    /*DWORD exceptionCode = ep->ExceptionRecord->ExceptionCode;
     if (exceptionCode == 0x6BA || // 你的错误代码
         exceptionCode == 0x40010006 || // DBG_PRINTEXCEPTION_C
         exceptionCode == 0x40010008 || // DBG_PRINTEXCEPTION_WIDE_C
@@ -743,7 +744,7 @@ LONG WINAPI CrashMonitor::VectoredHandler(EXCEPTION_POINTERS* ep) {
     LOG_FATAL_EX(ep, "VectoredHandler", "Vectored exception caught: 0x%X", ep->ExceptionRecord->ExceptionCode);
     // Show dialog
     CrashMonitor monitor;
-    monitor.ShowCrashDialog(ep);
+    monitor.ShowCrashDialog(ep);*/
     return EXCEPTION_CONTINUE_SEARCH;
 }
 

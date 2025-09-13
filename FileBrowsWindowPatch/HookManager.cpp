@@ -68,6 +68,9 @@ static HANDLE hConfigMap = NULL;
 static Remote_Config* pRemoteConfig = NULL;
 static HANDLE hThread = NULL;
 static bool shouldExit = false;
+static constexpr UINT_PTR MOVE_TIMER_ID_HKM = 0xDEAD;
+static std::unordered_map<HWND, DWORD> g_lastBlurTime_HKM;
+static std::mutex g_lastBlurMutex_HKM;
 
 namespace wux = winrt::Windows::UI::Xaml;
 namespace wuxm = winrt::Windows::UI::Xaml::Media;
@@ -1192,77 +1195,82 @@ bool HookManager::SetTaskbarTransparency(HWND hwnd, HookManager::AccentState acc
         return false;
     }
 
+    const DWORD WCA_ACCENT_POLICY = 19;
+
     // Disable effects if requested
     if (accentState == ACCENT_DISABLED) {
-        WINCOMPATTRDATA data = { 19 /*WCA_ACCENT_POLICY*/, nullptr, 0 };
-        SetWindowCompositionAttribute(hwnd, &data);
+        // 传空以清除之前的 AccentPolicy
+        WINCOMPATTRDATA clearData = { WCA_ACCENT_POLICY, nullptr, 0 };
+        SetWindowCompositionAttribute(hwnd, &clearData);
         return true;
     }
 
-    // If color is -1, use system theme color with custom alpha
-    bool useCustomAlpha = false;
+    // 如果 color == -1 则使用系统主题色（并允许使用传入的 alpha）
+    bool useSystemColor = false;
     if (color == static_cast<COLORREF>(-1)) {
         color = GetSystemThemeColor();
-        useCustomAlpha = true; // Only use alpha parameter when color is -1
+        useSystemColor = true;
     }
 
-    // Set AccentFlags
-    DWORD flags = 0;
-    switch (accentState) {
-    case ACCENT_ENABLE_GRADIENT:
-        flags = 2 | 0x2;
-        break;
-    case ACCENT_ENABLE_TRANSPARENTGRADIENT:
-        flags = 3 | 0x2;
-        break;
-    case ACCENT_ENABLE_BLURBEHIND:
-        flags = 0x20 | 0x2;
-        break;
-    case ACCENT_ENABLE_ACRYLICBLURBEHIND:
-        flags = 0x20 | 0x40 | 0x80 | 0x100 | 0x2; // Typical acrylic flags
-        break;
-    default:
-        flags = 2 | 0x2;
+    // 规范 alpha（0~255）
+    BYTE finalAlpha = alpha;
+
+    // 如果调用方未指定 alpha（例如传入 0），但希望依据 m_config 的百分比，则尝试读取
+    if (finalAlpha == 0 && m_config.automatic_acquisition_color_transparency >= 0 && m_config.automatic_acquisition_color_transparency <= 100) {
+        finalAlpha = static_cast<BYTE>((m_config.automatic_acquisition_color_transparency * 255 + 50) / 100);
     }
 
-    // Extract color components
+    // 计算 ARGB（注意顺序：Alpha <<24 | Red<<16 | Green<<8 | Blue）
     BYTE r = GetRValue(color);
     BYTE g = GetGValue(color);
     BYTE b = GetBValue(color);
+    DWORD gradientColor = (static_cast<DWORD>(finalAlpha) << 24) |
+        (static_cast<DWORD>(r) << 16) |
+        (static_cast<DWORD>(g) << 8) |
+        (static_cast<DWORD>(b));
 
-    // Always respect caller alpha
-    BYTE finalAlpha = alpha;
+    // 映射 accentState 到常用 flags（保守设置以兼容 Win10）
+    DWORD flags = 0;
+    switch (accentState) {
+    case ACCENT_ENABLE_GRADIENT:
+        flags = 0x00000001; // gradient-ish flag (保守)
+        break;
+    case ACCENT_ENABLE_TRANSPARENTGRADIENT:
+        flags = 0x00000002; // transparent gradient-ish
+        break;
+    case ACCENT_ENABLE_BLURBEHIND:
+        flags = 0x00000000; // blur behind 无需额外 flags
+        break;
+    case ACCENT_ENABLE_ACRYLICBLURBEHIND:
+        // acrylic 通常需要 tint enable (2) + 强化 flag（0x40）等，保守组合：
+        flags = 0x00000002 | 0x00000040;
+        break;
+    default:
+        flags = 0;
+        break;
+    }
 
-    // Construct ARGB format gradientColor (NOT ABGR)
-    DWORD gradientColor =
-        (static_cast<DWORD>(finalAlpha) << 24) |  // Alpha
-        (static_cast<DWORD>(r) << 16) |           // Red
-        (static_cast<DWORD>(g) << 8) |            // Green
-        b;                                        // Blue
-
-
-    AccentPolicy accent = {
-        accentState,
-        flags,
-        gradientColor,
-        0
-    };
+    // 如果使用系统颜色但希望使用自定义 alpha，则确保 finalAlpha 已被正确设置（上面已处理）
+    ACCENTPOLICY accent = { static_cast<int>(accentState), static_cast<int>(flags), static_cast<DWORD>(gradientColor), 0 };
 
     WINCOMPATTRDATA data = {
-        19, // WCA_ACCENT_POLICY
+        WCA_ACCENT_POLICY,
         &accent,
         sizeof(accent)
     };
 
-    // Apply changes
-    WINCOMPATTRDATA reset = { 19, nullptr, 0 };
+    // 先清理旧设置（以防冲突），然后再设置
+    WINCOMPATTRDATA reset = { WCA_ACCENT_POLICY, nullptr, 0 };
     SetWindowCompositionAttribute(hwnd, &reset);
-    bool result = SetWindowCompositionAttribute(hwnd, &data) != FALSE;
-    if (!result) {
+
+    BOOL ok = SetWindowCompositionAttribute(hwnd, &data);
+    if (!ok) {
         LOG_ERROR("[HookManager.cpp][SetTaskbarTransparency]", "SetWindowCompositionAttribute failed");
+        return false;
     }
 
-    return result;
+    LOG_DEBUG("[HookManager.cpp][SetTaskbarTransparency]", "SetWindowCompositionAttribute succeeded");
+    return true;
 }
 
 void HookManager::RefreshConfig() {
@@ -1768,7 +1776,7 @@ HRESULT __stdcall HookManager::HookedDrawThemeBackgroundEx(
     }
     else if (className == L"CommandModule" && IsDUIThread()) {
         if (iPartId == 1 && iStateId == 0) {
-            FillRect(hdc, pRect, m_clearBrush);
+            OriginalFillRect(hdc, pRect, m_clearBrush);
             return S_OK;
         }
     }
@@ -1776,10 +1784,10 @@ HRESULT __stdcall HookManager::HookedDrawThemeBackgroundEx(
         //if (iPartId == 1 && iStateId == 1) // 3 3
             return S_OK;
     }
-    else if (className == L"ShellStatusBarSeparator") {
+    //else if (className == L"ShellStatusBarSeparator") {
         //if (iPartId == 1 && iStateId == 1) // 3 3
-        return S_OK;
-    }
+        //return S_OK;
+    //}
     return OriginalDrawThemeBackgroundEx(hTheme, hdc, iPartId, iStateId, pRect, pOptions);
 }
 
@@ -1789,40 +1797,82 @@ void HookManager::StartAero(HWND hwnd, int type, COLORREF color, int transparenc
     if (!SetWindowCompositionAttribute)
         return;
 
-    ACCENTPOLICY policy = { type == 0 ? 3 : 4, 0, 0, 0 };
+    const int ACCENT_DISABLED = 0;
+    const int ACCENT_ENABLE_GRADIENT = 1;
+    const int ACCENT_ENABLE_TRANSPARENTGRADIENT = 2;
+    const int ACCENT_ENABLE_BLURBEHIND = 3;
+    const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
+    const int ACCENT_ENABLE_HOSTBACKDROP = 5;
 
-    if (blend)
+    int accentState;
+    switch (type)
     {
-        policy.nFlags = 2;
-
-        // color 是 COLORREF (0x00BBGGRR)
-        BYTE r = GetRValue(color);
-        BYTE g = GetGValue(color);
-        BYTE b = GetBValue(color);
-
-        // transparencyPercent: 0~100，0=完全透明，100=完全不透明
-        BYTE a = static_cast<BYTE>((transparencyPercent * 255 + 50) / 100); // 四舍五入
-
-        policy.nColor = (a << 24) | (b << 16) | (g << 8) | r;
+    case 0: accentState = ACCENT_ENABLE_BLURBEHIND; break;
+    case 1: accentState = ACCENT_ENABLE_ACRYLICBLURBEHIND; break;
+    case 2: accentState = ACCENT_ENABLE_GRADIENT; break;
+    case 3: accentState = ACCENT_ENABLE_TRANSPARENTGRADIENT; break;
+    case 4: accentState = ACCENT_ENABLE_HOSTBACKDROP; break;
+    case 5: accentState = ACCENT_DISABLED; break;
+    default: accentState = ACCENT_ENABLE_ACRYLICBLURBEHIND; break;
     }
-    else if (type == 1)
+
+    // 限定透明度范围并计算 alpha（0~255，四舍五入）
+    if (transparencyPercent < 0) transparencyPercent = 0;
+    if (transparencyPercent > 100) transparencyPercent = 100;
+    BYTE a = static_cast<BYTE>((transparencyPercent * 255 + 50) / 100);
+
+    ACCENTPOLICY policy = { accentState, 0, 0, 0 };
+
+    // 根据种类设置 flags 与 nColor（ARGB）
+    BYTE r = GetRValue(color);
+    BYTE g = GetGValue(color);
+    BYTE b = GetBValue(color);
+    DWORD argb = (static_cast<DWORD>(a) << 24) | (static_cast<DWORD>(r) << 16) | (static_cast<DWORD>(g) << 8) | (static_cast<DWORD>(b));
+
+    if (accentState == ACCENT_ENABLE_GRADIENT)
     {
-        policy.nFlags = 1;
-
-        BYTE a = static_cast<BYTE>((transparencyPercent * 255 + 50) / 100);
-        policy.nColor = (a << 24) | (255 << 16) | (255 << 8) | 255; // 白色+透明度
+        policy.nFlags = blend ? 2 : 1;
+        policy.nColor = argb;
     }
-    else
+    else if (accentState == ACCENT_ENABLE_TRANSPARENTGRADIENT)
+    {
+        policy.nFlags = 0;
+        // 透明渐变以 alpha 为主，仍允许 tint
+        policy.nColor = argb;
+    }
+    else if (accentState == ACCENT_ENABLE_BLURBEHIND)
+    {
+        // 传统模糊：通常不需要 tint flags，但如果 blend 请求颜色则启用 tint 标志
+        policy.nFlags = blend ? 2 : 0;
+        policy.nColor = blend ? argb : 0;
+    }
+    else if (accentState == ACCENT_ENABLE_ACRYLICBLURBEHIND)
+    {
+        // Acrylic 在不同系统上表现不同，使用保守的 flags：启用 tint (2) + acrylic extra (0x40)
+        policy.nFlags = blend ? (2 | 0x40) : 0x40;
+        policy.nColor = blend ? argb : 0;
+    }
+    else if (accentState == ACCENT_ENABLE_HOSTBACKDROP)
+    {
+        // Host backdrop 尝试：视系统支持而定，设置较弱的 tint 标志
+        policy.nFlags = blend ? 2 : 0;
+        policy.nColor = blend ? argb : 0;
+    }
+    else // ACCENT_DISABLED
     {
         policy.nFlags = 0;
         policy.nColor = 0;
+        policy.nAccentState = ACCENT_DISABLED;
     }
 
-    WINCOMPATTRDATA data = { 19, &policy, sizeof(ACCENTPOLICY) };
+    // 发送到系统：先重置再设置，减少遗留状态问题
+    const DWORD WCA_ACCENT_POLICY = 19;
+    WINCOMPATTRDATA reset = { WCA_ACCENT_POLICY, nullptr, 0 };
+    SetWindowCompositionAttribute(hwnd, &reset);
+
+    WINCOMPATTRDATA data = { WCA_ACCENT_POLICY, &policy, sizeof(ACCENTPOLICY) };
     SetWindowCompositionAttribute(hwnd, &data);
 }
-
-
 
 
 inline BYTE M_GetAValue(COLORREF rgba) {
@@ -1845,22 +1895,45 @@ void HookManager::SetWindowBlur(HWND hWnd) {
             OnWindowSize(hWnd, pRect.bottom - pRect.top);
             if (m_config.effType == 1)
             {
-                //int type = 0;
-                //OriginalDwmSetWindowAttribute(hWnd, 1029, &type, sizeof(type));
-
-                DWM_BLURBEHIND blur = { 0 };
-                blur.dwFlags = DWM_BB_ENABLE;
-                blur.fEnable = TRUE;
-                DwmEnableBlurBehindWindow(hWnd, &blur);
-
-                if (isBlend){
-	                StartAero(hWnd, 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, true);
+                // 先开启传统的 DWM BlurBehind，增强边缘过渡
+                if (DwmEnableBlurBehindWindow)
+                {
+                    DWM_BLURBEHIND blur = { 0 };
+                    blur.dwFlags = DWM_BB_ENABLE;
+                    blur.fEnable = TRUE;
+                    blur.hRgnBlur = NULL; // 全窗口模糊
+                    DwmEnableBlurBehindWindow(hWnd, &blur);
                 }
-                else {
-                    DWM_SYSTEMBACKDROP_TYPE type1 = DWMSBT_NONEDWMSBT_TRANSIENTWINDOW;
-                    OriginalDwmSetWindowAttribute(hWnd, DWMWA_SYSTEMBACKDROP_TYPE, &type1, sizeof(type1));
+
+                // 计算 alpha（0~255，四舍五入）
+                int tp = m_config.automatic_acquisition_color_transparency;
+                if (tp < 0) tp = 0;
+                if (tp > 100) tp = 100;
+                BYTE a = static_cast<BYTE>((tp * 255 + 50) / 100);
+
+                // 将 COLORREF (0x00BBGGRR) 转换为 nColor (0xAABBGGRR)
+                BYTE r = GetRValue(m_config.blendColor);
+                BYTE g = GetGValue(m_config.blendColor);
+                BYTE b = GetBValue(m_config.blendColor);
+                DWORD nColor = (static_cast<DWORD>(a) << 24) | (static_cast<DWORD>(b) << 16) | (static_cast<DWORD>(g) << 8) | static_cast<DWORD>(r);
+
+                // 使用 Acrylic（更接近截图效果）
+                // ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
+                // nFlags = 2 启用 tint color
+                ACCENTPOLICY policy = { 4, isBlend ? 2 : 0, isBlend ? static_cast<int>(nColor) : 0, 0 };
+
+                WINCOMPATTRDATA data = { 19, &policy, sizeof(ACCENTPOLICY) };
+                if (SetWindowCompositionAttribute)
+                    SetWindowCompositionAttribute(hWnd, &data);
+
+                // 若不使用 blend，则尝试设置系统 backdrop 类型（在 Win11 上可获得更接近系统的后景处理）
+                if (!isBlend && OriginalDwmSetWindowAttribute)
+                {
+                    DWM_SYSTEMBACKDROP_TYPE backdrop = DWMSBT_TABBEDWINDOW;
+                    OriginalDwmSetWindowAttribute(hWnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop, sizeof(backdrop));
                 }
             }
+
             else if (m_config.effType == 3) {
                 DWM_BLURBEHIND blur = { 0 };
                 blur.dwFlags = DWM_BB_ENABLE;
@@ -1886,7 +1959,7 @@ void HookManager::SetWindowBlur(HWND hWnd) {
                 DwmEnableBlurBehindWindow(hWnd, &blur);
 
                 if (isBlend) {
-                    StartAero(hWnd, 3, m_config.blendColor, m_config.automatic_acquisition_color_transparency, true);
+                    StartAero(hWnd, 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, true);
                 }
                 else {
                     DWM_SYSTEMBACKDROP_TYPE type1 = DWMSBT_NONEDWMSBT_TRANSIENTWINDOW;
@@ -1925,11 +1998,127 @@ void HookManager::SetWindowBlur(HWND hWnd) {
         }
         LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Using Windows 11 blur method");
     }
-    else
-    {
-	    StartAero(hWnd, m_config.effType == 1 ? 0 : 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
-        LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Using Windows 10 blur method");
-    }
+     else {
+         // Windows 11 以下：分为 Win10 (>=10240 && <22000)、Win8/8.1 (>=6000 && <10240)、Win7 (<6000)
+         LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Detected OS build: ", build);
+         bool isWin7 = build < 6000;
+         bool isWin10 = build >= 10240;
+
+         // 对于 Win7：使用 DWM BlurBehind + 分层窗口颜色(如果需要 tint)
+         if (isWin7) {
+             DWM_BLURBEHIND blur = { 0 };
+             blur.dwFlags = DWM_BB_ENABLE;
+             blur.fEnable = TRUE;
+             blur.hRgnBlur = NULL;
+             if (DwmEnableBlurBehindWindow) {
+                 DwmEnableBlurBehindWindow(hWnd, &blur);
+             }
+
+             // effType 不同的降级处理（尽量模拟 Win10/11 效果）
+             switch (m_config.effType) {
+             case 0: // blur
+             case 1: // mica/acrylic 尝试用 blur + tint 模拟
+             {
+                 // 若需要颜色混合则用分层窗口 (SetLayeredWindowAttributes)
+                 if (isBlend) {
+                     // 将透明度从百分比转换为 0~255
+                     int tp = m_config.automatic_acquisition_color_transparency;
+                     if (tp < 0) tp = 0;
+                     if (tp > 100) tp = 100;
+                     BYTE alpha = static_cast<BYTE>((tp * 255 + 50) / 100);
+
+                     // COLORREF -> ARGB
+                     BYTE r = GetRValue(m_config.blendColor);
+                     BYTE g = GetGValue(m_config.blendColor);
+                     BYTE b = GetBValue(m_config.blendColor);
+                     COLORREF col = RGB(r, g, b);
+
+                     // 将窗口设置为分层并应用 alpha tint（仅在 WS_EX_LAYERED 支持下）
+                     LONG ex = GetWindowLong(hWnd, GWL_EXSTYLE);
+                     if (!(ex & WS_EX_LAYERED)) {
+                         SetWindowLong(hWnd, GWL_EXSTYLE, ex | WS_EX_LAYERED);
+                     }
+                     // Use SetLayeredWindowAttributes for simple tint
+                     SetLayeredWindowAttributes(hWnd, col, alpha, LWA_ALPHA | LWA_COLORKEY);
+                 }
+                 break;
+             }
+             case 2: // gradient -> 使用纯色叠加模拟
+             case 3: // transparent gradient -> 透明度较高的纯色
+             default:
+                 // 默认：只启用 BlurBehind，尽量保持原窗口外观
+                 break;
+             }
+
+             LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Using Windows 7-compatible blur");
+             return;
+         } // end isWin7
+
+         // 对于 Win10（及大多数 Win8/8.1）：
+         // 尝试使用 SetWindowCompositionAttribute 的 ACCENT 功能来提供更多效果（Acrylic/Blur/Gradient）
+         if (SetWindowCompositionAttribute) {
+             switch (m_config.effType) {
+             case 0: // 兼容旧行为 -> 模糊
+             {
+                 StartAero(hWnd, 0, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
+                 break;
+             }
+             case 1: // 标题栏/窗口 tint + 模糊/亚克力尝试
+             {
+                 // 取消系统 Mica（尝试）
+                 int type = 0;
+                 if (OriginalDwmSetWindowAttribute) {
+                     OriginalDwmSetWindowAttribute(hWnd, 1029, &type, sizeof(type));
+                 }
+                 StartAero(hWnd, 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
+
+                 // 设置标题栏颜色（部分 Win10 版本支持）
+                 if (OriginalDwmSetWindowAttribute) {
+                     COLORREF color = m_config.blendColor;
+                     OriginalDwmSetWindowAttribute(hWnd, DWMWA_CAPTION_COLOR, &color, sizeof(color));
+                 }
+                 break;
+             }
+             case 2: // 传统 Aero Glass / 半透明
+             {
+                 StartAero(hWnd, 2, m_config.blendColor, m_config.automatic_acquisition_color_transparency, false);
+                 break;
+             }
+             case 3: // 透明渐变
+             {
+                 StartAero(hWnd, 3, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
+                 break;
+             }
+             case 4: // Host backdrop (在 Win10 上映射为 Acrylic 尝试)
+             {
+                 StartAero(hWnd, 1, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
+                 break;
+             }
+             case 5: // Disabled
+             {
+                 StartAero(hWnd, 5, 0, 0, false);
+                 break;
+             }
+             default:
+                 StartAero(hWnd, m_config.effType == 1 ? 1 : 0, m_config.blendColor, m_config.automatic_acquisition_color_transparency, isBlend);
+             }
+
+             LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "Using Win10/legacy SetWindowCompositionAttribute method");
+             return;
+         }
+         else {
+             // 若没有 SetWindowCompositionAttribute（非常老的系统），回退到 DWM blur 或无效果
+             DWM_BLURBEHIND blur = { 0 };
+             blur.dwFlags = DWM_BB_ENABLE;
+             blur.fEnable = TRUE;
+             blur.hRgnBlur = NULL;
+             if (DwmEnableBlurBehindWindow) {
+                 DwmEnableBlurBehindWindow(hWnd, &blur);
+             }
+             LOG_DEBUG("[HookManager.cpp][SetWindowBlur]", "SetWindowCompositionAttribute unavailable, used DWM blur fallback");
+             return;
+         }
+         }
     }
     catch (const std::exception& e) {
         LOG_ERROR("[HookManager.cpp][SetWindowBlur]", "Exception in SetWindowBlur: ", e.what());
@@ -1944,16 +2133,8 @@ void HookManager::SetWindowBlur(HWND hWnd) {
 
 void HookManager::OnWindowSize(HWND hWnd, int newHeight)
 {
-    DWMNCRENDERINGPOLICY enableNcRendering = DWMNCRP_ENABLED;
-    OriginalDwmSetWindowAttribute(hWnd, DWMWA_NCRENDERING_POLICY, &enableNcRendering, sizeof(enableNcRendering));
-    // 允许窗口内容扩展到标题栏区域
-    BOOL extendFrame = TRUE;
-    OriginalDwmSetWindowAttribute(hWnd, DWMWA_EXTENDED_FRAME_BOUNDS, &extendFrame, sizeof(extendFrame));
     MARGINS margins = { -1 };
     margins.cyTopHeight = GetSystemMetricsForDpi(SM_CYCAPTION, GetDpiForWindow(hWnd)) + 10;
-    OriginalDwmExtendFrameIntoClientArea(hWnd, &margins);
-    //BOOL type2 = FALSE;
-    //OriginalDwmSetWindowAttribute(hWnd, DWMWA_USE_HOSTBACKDROPBRUSH, &type2, sizeof(type2));
     //DwmFlush();
 }
 
@@ -1986,64 +2167,25 @@ LRESULT WINAPI HookManager::WndSubProc(
     // 定义更新窗口尺寸的Lambda函数（减少重复代码）
     auto UpdateWindowSize = [hWnd]() {
         RECT rect;
-        GetWindowRect(hWnd, &rect);
-        OnWindowSize(hWnd, rect.bottom - rect.top);
+        if (GetWindowRect(hWnd, &rect)) {
+           OnWindowSize(hWnd, rect.bottom - rect.top);
+        }
         };
 
-    auto RenderBackgroundImage = [hWnd](HDC hdc) -> bool {
-        if (HookManager::m_config.imagePath.empty()) {
-            return false;
+    // 节流式调用 SetWindowBlur（使用文件作用域缓存与互斥量）
+    auto ThrottledSetWindowBlur = [hWnd](int thresholdMs = 80) {
+        DWORD now = GetTickCount();
+        std::lock_guard<std::mutex> lg(g_lastBlurMutex_HKM);
+        auto it = g_lastBlurTime_HKM.find(hWnd);
+        if (it == g_lastBlurTime_HKM.end() || (int)(now - it->second) >= thresholdMs) {
+            g_lastBlurTime_HKM[hWnd] = now;
+            // 直接调用 SetWindowBlur
+            SetWindowBlur(hWnd);
         }
-
-        // 加载图片
-        HBITMAP hBitmap = (HBITMAP)LoadImageW(
-            NULL,
-            HookManager::m_config.imagePath.c_str(),
-            IMAGE_BITMAP,
-            0, 0,
-            LR_LOADFROMFILE | LR_CREATEDIBSECTION
-        );
-
-        if (!hBitmap) {
-            return false;
-        }
-
-        // 获取窗口客户区尺寸
-        RECT rcClient;
-        GetClientRect(hWnd, &rcClient);
-
-        // 创建内存DC
-        HDC hMemDC = CreateCompatibleDC(hdc);
-        HBITMAP hOldBmp = (HBITMAP)SelectObject(hMemDC, hBitmap);
-
-        // 获取位图尺寸
-        BITMAP bm;
-        GetObject(hBitmap, sizeof(BITMAP), &bm);
-
-        // 设置透明度
-        BLENDFUNCTION bf = { AC_SRC_OVER, 0, (BYTE)(HookManager::m_config.imageOpacity * 255), 0 };
-
-        // 渲染图片（拉伸填充整个窗口）
-        OriginalAlphaBlend(
-            hdc,
-            rcClient.left, rcClient.top,
-            rcClient.right - rcClient.left,
-            rcClient.bottom - rcClient.top,
-            hMemDC,
-            0, 0,
-            bm.bmWidth,
-            bm.bmHeight,
-            bf
-        );
-
-        // 清理资源
-        SelectObject(hMemDC, hOldBmp);
-        DeleteDC(hMemDC);
-        DeleteObject(hBitmap);
-        return true;
         };
 
-    // 根据 dwRefData 分支处理
+    
+    // 根据 dwRefData 分支处理（保留原有语义）
     if (dwRefData == 0) {
         switch (message) {
         case WM_SIZE: {
@@ -2054,16 +2196,30 @@ LRESULT WINAPI HookManager::WndSubProc(
 
         case WM_ACTIVATE: {
             LRESULT ret = DefSubclassProc(hWnd, message, wparam, lparam);
-            UpdateWindowSize();  // 使用Lambda统一更新尺寸
-            SetWindowBlur(hWnd); // 窗口激活时更新模糊效果
+            UpdateWindowSize();
             return ret;
         }
+
         case WM_SYSCOMMAND: {
             if (wparam == SC_MAXIMIZE || wparam == SC_RESTORE) {
                 LRESULT ret = DefSubclassProc(hWnd, message, wparam, lparam);
-                UpdateWindowSize();  // 最大化/恢复时更新尺寸
+                UpdateWindowSize();
                 return ret;
             }
+            break;
+        }
+
+        case WM_ENTERSIZEMOVE: {
+            SetProp(hWnd, L"__HKM_IN_MOVE__", reinterpret_cast<HANDLE>(1));
+            SetTimer(hWnd, MOVE_TIMER_ID_HKM, 100, NULL); // ~10Hz -> 25Hz 原来是 100ms
+            return 0;
+        }
+
+        case WM_EXITSIZEMOVE: {
+            KillTimer(hWnd, MOVE_TIMER_ID_HKM);
+            RemoveProp(hWnd, L"__HKM_IN_MOVE__");
+            UpdateWindowSize();
+            InvalidateRect(hWnd, NULL, FALSE);
             break;
         }
         }
@@ -2087,52 +2243,55 @@ LRESULT WINAPI HookManager::WndSubProc(
 
     // 全局消息处理（不依赖dwRefData）
     switch (message) {
-        // 拦截背景绘制消息
+    /*case WM_TIMER:
+        if (wparam == MOVE_TIMER_ID_HKM) {
+            UpdateWindowSize();
+            ThrottledSetWindowBlur(120);
+            // 只重绘需要更新的区域，避免整个窗口重绘
+            InvalidateRect(hWnd, NULL, FALSE);
+            UpdateWindow(hWnd); // 确保及时更新
+            return 0;
+        }
+        break;
+
     case WM_USER_REDRAW:
         RedrawWindow(hWnd, nullptr, nullptr,
             RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_ERASE | RDW_FRAME);
         return 0;
+
+    //case WM_MOVING:
+    case WM_WINDOWPOSCHANGING:
+        if (!GetProp(hWnd, L"__HKM_IN_MOVE__")) {
+            SetTimer(hWnd, MOVE_TIMER_ID_HKM, 50, NULL);
+            SetProp(hWnd, L"__HKM_IN_MOVE__", reinterpret_cast<HANDLE>(1));
+        }
+        break;
+
     case WM_SIZE:
         for (auto& pair : HookManager::s_imageCache) {
             pair.second.needsUpdate = true;
         }
-        break;
-    case WM_DWMCOMPOSITIONCHANGED:
+        ThrottledSetWindowBlur(150);
+        break;*/
+
+        /* WM_DWMCOMPOSITIONCHANGED:
         SetWindowBlur(hWnd);
-        break;
+        InvalidateRect(hWnd, NULL, TRUE);
+        break*/
+
     case WM_NCPAINT:
         SetWindowBlur(hWnd);
         break;
-    case WM_ERASEBKGND: {
-        SetWindowBlur(hWnd);
-        if (pWindowEffect) {
-            HDC hdc = (HDC)wparam;
-            RECT rc;
-            GetClientRect(hWnd, &rc);
 
-            // 先尝试渲染图片
-            if (!RenderBackgroundImage(hdc)) {
-                // 图片渲染失败时回退到透明背景
-                FillRect(hdc, &rc, transparentBrush);
-            }
-        }
-    		break;
-    }
-    case WM_PAINT: {
-    		SetWindowBlur(hWnd);
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hWnd, &ps);
-        // 先调用默认绘制
-        LRESULT ret = DefSubclassProc(hWnd, message, wparam, lparam);
-        // 再叠加图片
-        if (pWindowEffect) {
-            RenderBackgroundImage(hdc);
-        }
-        EndPaint(hWnd, &ps);
-        return ret;
-    }
+    /*case WM_ERASEBKGND: {
+        HDC hdc = (HDC)wparam;
+        RECT rc;
+        GetClientRect(hWnd, &rc);
+        FillRect(hdc, &rc, transparentBrush);
+        return 1;
+    }*/
 
-    case WM_NCCALCSIZE:
+    /*case WM_NCCALCSIZE:
         if (lparam) {
             UINT dpi = GetDpiForWindow(hWnd);
             int frameX = GetSystemMetricsForDpi(SM_CXFRAME, dpi);
@@ -2145,29 +2304,32 @@ LRESULT WINAPI HookManager::WndSubProc(
             params->rgrc[0].bottom -= frameY + padding;
             return 0;
         }
-        break;
+        break;*/
 
-    case WM_SETTINGCHANGE:
+    /*case WM_SETTINGCHANGE:
         if (lparam && CompareStringOrdinal(
             reinterpret_cast<LPCWCH>(lparam), -1, L"ImmersiveColorSet", -1, TRUE) == CSTR_EQUAL)
         {
-            SetWindowBlur(hWnd);  // 主题变化时更新模糊效果
+            SetWindowBlur(hWnd);
+            InvalidateRect(hWnd, NULL, TRUE);
         }
-        break;
+        break;*/
 
-    case WM_DPICHANGED: {
+    /*case WM_DPICHANGED: {
         LRESULT ret = DefSubclassProc(hWnd, message, wparam, lparam);
         auto iter = m_DUIList.find(GetCurrentThreadId());
         if (iter != m_DUIList.end()) {
             iter->second.treeDraw = true;
         }
-        UpdateWindowSize();  // DPI变化时更新尺寸
+        UpdateWindowSize();
+        InvalidateRect(hWnd, NULL, TRUE);
         return ret;
-    }
+    }*/
     }
 
     return DefSubclassProc(hWnd, message, wparam, lparam);
 }
+
 
 struct ComUninitGuard {
     ~ComUninitGuard() { CoUninitialize(); }
@@ -2783,101 +2945,6 @@ int WINAPI HookManager::HookedFillRect(HDC hDC, const RECT* lprc, HBRUSH hbr) {
     int ret = S_OK;
     DWORD curThread = GetCurrentThreadId();
     bool backgroundRendered = false; // 新增：标记是否已渲染背景
-
-    // 检查是否需要渲染图片背景
-    if (!HookManager::m_config.imagePath.empty()) {
-        auto iter = m_DUIList.find(curThread);
-        if (iter != m_DUIList.end() && iter->second.hDC == hDC) {
-            // 单例加载图片（避免重复加载）
-            static std::unordered_map<std::wstring, BitmapCache> s_imageCache;
-            auto& cache = s_imageCache[HookManager::m_config.imagePath];
-
-            // 首次加载或图片路径变化时重新加载
-            if (!cache.hBitmap || cache.path != HookManager::m_config.imagePath) {
-                // 释放旧资源
-                if (cache.hBitmap) {
-                    DeleteObject(cache.hBitmap);
-                    cache.hBitmap = nullptr;
-                }
-
-                // 使用GDI+加载任意格式图片
-                Gdiplus::Bitmap* pBitmap = Gdiplus::Bitmap::FromFile(
-                    HookManager::m_config.imagePath.c_str()
-                );
-
-                if (pBitmap && pBitmap->GetLastStatus() == Gdiplus::Ok) {
-                    pBitmap->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &cache.hBitmap);
-                    cache.path = HookManager::m_config.imagePath;
-                    cache.width = pBitmap->GetWidth();
-                    cache.height = pBitmap->GetHeight();
-                }
-                delete pBitmap;
-            }
-
-            // 成功加载图片后渲染
-            if (cache.hBitmap) {
-                // 只调用一次原始填充作为背景
-                ret = OriginalFillRect(hDC, lprc, hbr);
-
-                HDC hMemDC = CreateCompatibleDC(hDC);
-                HBITMAP hOldBmp = (HBITMAP)SelectObject(hMemDC, cache.hBitmap);
-
-                // 计算绘制位置和尺寸（居中）
-                int drawX = (iter->second.width - cache.width) / 2;
-                int drawY = (iter->second.height - cache.height) / 2;
-
-                // 设置透明度混合
-                BLENDFUNCTION bf = {
-                    AC_SRC_OVER,
-                    0,
-                    static_cast<BYTE>(HookManager::m_config.imageOpacity * 255),
-                    AC_SRC_ALPHA
-                };
-                // 替换原有的绘制代码
-                RECT rcClient;
-                GetClientRect(iter->second.hWnd, &rcClient);  // 获取实际客户区大小
-
-                // 渲染图片
-                OriginalAlphaBlend(
-                    hDC,
-                    rcClient.left, rcClient.top,   // 从客户区左上角开始
-                    rcClient.right - rcClient.left, // 使用客户区宽度
-                    rcClient.bottom - rcClient.top, // 使用客户区高度
-                    hMemDC,
-                    0, 0,
-                    cache.width,
-                    cache.height,
-                    bf
-                );
-
-                // 清理资源
-                SelectObject(hMemDC, hOldBmp);
-                DeleteDC(hMemDC);
-
-                backgroundRendered = true; // 标记已渲染
-
-                // 直接在这里处理后续逻辑
-                if (iter->second.refresh) {
-                    SendMessageW(iter->second.hWnd, WM_THEMECHANGED, 0, 0);
-
-                    DWORD build = WindowsVersion::GetBuildNumber();
-                    if (build >= 22600) {
-                        SetWindowBlur(iter->second.mainWnd);
-                    }
-
-                    iter->second.refresh = false;
-                    InvalidateRect(iter->second.hWnd, nullptr, TRUE);
-                }
-
-                COLORREF color = RGB(0, 0, 0);
-                if (!CompareColor(TreeView_GetBkColor(iter->second.TreeWnd), color)) {
-                    TreeView_SetBkColor(iter->second.TreeWnd, color);
-                }
-
-                return ret; // 提前返回，避免后续覆盖
-            }
-        }
-    }
 
     // 未渲染背景时才执行以下逻辑
     if (!backgroundRendered) {
