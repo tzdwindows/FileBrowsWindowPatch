@@ -10,7 +10,7 @@ A Windows platform tool developed using C++20, used to achieve the background bl
 
 ## 运行效果 Running Effect
 运行效果如下：
-![运行效果](https://github.com/tzdwindows/FileBrowsWindowPatch/Test1.png)
+![运行效果](https://github.com/tzdwindows/FileBrowsWindowPatch/blob/master/Test1.png)
 
 ## 使用指南：FileBrowsWindow 效果设置
 
