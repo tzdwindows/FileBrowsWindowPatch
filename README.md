@@ -1,44 +1,58 @@
 # FileBrowseWindowPatch
 
 一个使用 C++20 开发的 Windows 平台工具，用于实现 Windows 文件资源管理器窗口的背景模糊效果。
+A Windows platform tool developed using C++20, used to achieve the background blur effect of Windows File Explorer window.
 
-## 功能特性
+## 快速开始 Quick Start
+1. 在 [releases](https://github.com/tzdwindows/FileBrowsWindowPatch/releases) 中找到最新版下载
+2. 将下载到的 *FileBrowsWindowPatchXXXX.zip* 解压到你认为安全的文件夹中
+3. 直接点击 *执行透明.bat* 运行
 
-- 🌫️ 为 Windows 文件资源管理器添加亚克力/模糊背景效果
-- ⚡ 轻量级实现，性能影响极小
-- 🔧 使用现代 C++20 标准开发
-- 🎯 针对 Windows 11 系统优化，兼容 Windows 10
-- 📦 简单易用，无需复杂配置
+## 运行效果 Running Effect
+运行效果如下：
+![运行效果](https://github.com/tzdwindows/FileBrowsWindowPatch/Test1.png)
 
-## 系统要求
+## 使用指南：FileBrowsWindow 效果设置
 
-- **操作系统**: Windows 10 (1809 或更高版本) 或 Windows 11
-- **开发环境**: Visual Studio 2022 (v17.0 或更高版本)
-- **C++标准**: C++20
+### 快速开始
+1. 按下 `Win + R` 打开运行窗口
+2. 输入 **cmd** 并回车，启动命令提示符
+3. 使用以下命令进入程序目录：
+   ```cmd
+   cd <FileBrowsWindowPatch的解压路径>
+   ```
+4. 运行程序并添加所需参数：
+   ```cmd
+   FileBrowsWindow.exe [参数选项]
+   ```
 
-## 编译说明
+### 参数说明
+程序支持以下参数选项：
 
-### 前置条件
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `--efftype` | 设置模糊类型（取值范围：0-4） | `--efftype=1` |
+| `--blendcolor` | 设置模糊颜色，使用[r,g,b,a]格式（0-255） | `--blendcolor=[255,255,255,255]` |
 
-1. 安装 Visual Studio 2022
-2. 确保安装以下工作负载：
-    - "使用 C++ 的桌面开发"
-    - "Windows 10/11 SDK" (10.0.19041.0 或更高版本)
+### 使用示例
+- 单独使用效果类型参数：
+  ```cmd
+  FileBrowsWindow.exe --efftype=2
+  ```
 
-### 编译步骤
+- 单独使用颜色参数：
+  ```cmd
+  FileBrowsWindow.exe --blendcolor=[255,0,0,128]
+  ```
 
-1. 克隆或下载本项目
-2. 打开 `FileBrowseWindowPatch.sln` 解决方案文件
-3. 选择构建配置 (推荐使用 Release|x64)
-4. 生成 -> 生成解决方案
+- 组合使用多个参数（参数可叠加）：
+  ```cmd
+  FileBrowsWindow.exe --efftype=3 --blendcolor=[0,128,255,200]
+  ```
 
-## 使用方法
+### 注意事项
+- 参数顺序无关紧要，程序会自动识别
+- 颜色值需确保在0-255范围内
+- 效果类型请选择0-4之间的整数
 
-1. 编译项目生成可执行文件
-2. 以管理员权限运行生成的可执行文件
-3. 工具会自动挂钩到文件资源管理器进程并应用模糊效果
-4. 效果会实时应用，无需重启文件资源管理器
-
-## 免责声明
-
-本工具为实验性项目，使用前请确保了解其工作原理。作者不对使用本工具可能造成的系统问题负责。
+提示：将 `<FileBrowsWindowPatch的解压路径>` 替换为实际的解压目录路径
